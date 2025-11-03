@@ -1,0 +1,19 @@
+####################
+# User config
+LISTEN_ADDR=0.0.0.0:50002
+BITCOIND_ADDR=http://127.0.0.1:8332
+BITCOIND_USER=bitcoin
+BITCOIND_PASSWORD=bitcoin
+BITCOIND_WALLET_PREFIX=eps_go
+####################
+# Descriptors are loaded individually or in pairs, usually you will import one
+# descriptor pair for each wallet
+# 
+# When importing old wallets, you must manually run a rescan on bitcoin-cli
+DESCRIPTORS=desc1:desc_change2;desc2:desc_change2;desc3
+
+####################
+# Test config
+#CMD_START_FRESH_BITCOIND=cmd_to_start_bitcoind_with_fresh_state
+#CMD_SAVE_BITCOIND_STATE=cmd_to_save_current_bitcoind_state
+#CMD_LOAD_BITCOIND_SAVED_STATE=cmd_to_restore_bitcoind_saved_state
