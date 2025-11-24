@@ -29,15 +29,6 @@ var (
 	versionTestnetPrivate = [4]byte{0x04, 0x35, 0x83, 0x94}
 )
 
-func serializeUint32(v uint32) [4]byte {
-	var r [4]byte
-	r[0] = byte(v >> (8 * 3))
-	r[1] = byte(v >> (8 * 2))
-	r[2] = byte(v >> (8 * 1))
-	r[3] = byte(v >> (8 * 0))
-	return r
-}
-
 func FromSeed(seed []byte, path string) (string, string, error) {
 	dpath, err := parseDerivationPath(path)
 	if err != nil {
@@ -83,6 +74,60 @@ func FromSeed(seed []byte, path string) (string, string, error) {
 	xk.Version = versionMainnetPublic
 	encodedXpub := extendedEncode(xk)
 	return encodedXpub, encodedXpriv, nil
+}
+
+//func DeriveXpriv(xpriv string, path string) (string, error) {
+//
+//}
+
+func DeriveXpub(xpub string, path string) (string, error) {
+	var (
+		pubkeyChaincode   [65]byte
+		childXpub         [65]byte
+		parentXpub        [65]byte
+		parentFingerprint [4]byte
+		exKey             extendedKey
+		childNum          [4]byte
+	)
+	dpath, err := parseDerivationPath(path)
+	if err != nil {
+		return "", err
+	}
+	decoded, err := extendedDecode(xpub)
+	if err != nil {
+		return "", err
+	}
+	copy(pubkeyChaincode[:], decoded.Key[:])
+	copy(pubkeyChaincode[33:], decoded.Chaincode[:])
+	for _, derivation := range dpath {
+		if derivation&hardened != 0 {
+			return "", fmt.Errorf("hardened derivation from pubkey")
+		}
+		parentXpub = childXpub
+		childXpub, err = deriveUnhardenedPubFromPub(
+			pubkeyChaincode, derivation,
+		)
+		if err != nil {
+			return "", err
+		}
+		pubkeyChaincode = childXpub
+	}
+	if len(dpath) != 0 {
+		parentHash := hash160(parentXpub[:33])
+		copy(parentFingerprint[:], parentHash[:4])
+		childNum = serializeUint32(dpath[len(dpath)-1])
+	}
+	exKey.Version = versionMainnetPublic
+	exKey.Depth = byte(len(dpath)) + decoded.Depth
+	exKey.Fingerprint = parentFingerprint
+	exKey.ChildNum = childNum
+	copy(exKey.Chaincode[:], childXpub[33:])
+	copy(exKey.Key[:], childXpub[0:33])
+	encodedXpub := extendedEncode(exKey)
+	if err != nil {
+		return "", err
+	}
+	return encodedXpub, nil
 }
 
 func derivePrivFromPriv(
@@ -220,6 +265,7 @@ func compressedFromPointAdd(
 		return d, err
 	}
 	presult = secp256k1.PointAdd(&pa, &pb)
+	secp256k1.PointToAffine(&presult)
 	return secp256k1.PointSerializeCompressed(&presult), nil
 }
 
@@ -378,4 +424,25 @@ func extendedEncode(e extendedKey) string {
 func hash160(data []byte) [20]byte {
 	h256 := sha256.Sum256(data)
 	return ripemd160.Sum160(h256[:])
+}
+
+func serializeUint32(v uint32) [4]byte {
+	var r [4]byte
+	r[0] = byte(v >> (8 * 3))
+	r[1] = byte(v >> (8 * 2))
+	r[2] = byte(v >> (8 * 1))
+	r[3] = byte(v >> (8 * 0))
+	return r
+}
+
+func deserializeUint32(v [4]byte) uint32 {
+	var r uint32
+	r |= uint32(v[0])
+	r <<= 8
+	r |= uint32(v[1])
+	r <<= 8
+	r |= uint32(v[2])
+	r <<= 8
+	r |= uint32(v[3])
+	return r
 }

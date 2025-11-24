@@ -326,6 +326,32 @@ func Test_DecodeExtendedKey(t *testing.T) {
 	}
 }
 
+func Test_FromPub(t *testing.T) {
+	tests := []struct {
+		xpub string
+		path string
+		exp  string
+	}{
+		{
+			xpub: "xpub6D7g6FjkmUr7PdVsmEZ9cq9KcGN1drN21gHqRdGXacLWSBzwT3W5A3ctGAVFvCCykhuaVQto63HN4UoeHNkzg3vQCU3WARHzRRpnKEXWkQY",
+			path: "m/0/0",
+			exp:  "xpub6GpX7UmyetF5eN7dWid5S7djbbnttvf3Nkcy4hyMbuhZRFh6aU3DA9HZ65hJnWk1vAj8xhgyyJgwnk8Vo2da8XHe2bBJZbKhMeMPK47CGxw",
+		},
+		{
+			xpub: "xpub6D7g6FjkmUr7PdVsmEZ9cq9KcGN1drN21gHqRdGXacLWSBzwT3W5A3ctGAVFvCCykhuaVQto63HN4UoeHNkzg3vQCU3WARHzRRpnKEXWkQY",
+			path: "m/1/0",
+			exp:  "xpub6Ft2UWfkM7BbWZXSq13yb3YjbbdgxNkXxzT2mDuu4bztaJ3cztHsD262ktNNNsV3hiG8XBhxDExfMXeP2BqotN4WuzTu55qGbbRSMgcPviv",
+		},
+	}
+	for _, test := range tests {
+		t.Run("", func(t *testing.T) {
+			xpub, err := DeriveXpub(test.xpub, test.path)
+			assert.Must(t, err)
+			mustEqualEncodedExt(t, test.exp, xpub)
+		})
+	}
+}
+
 func mustEqualExt(t *testing.T, exp, got extendedKey) {
 	if reflect.DeepEqual(exp, got) {
 		return
