@@ -1,7 +1,6 @@
 package bip32
 
 import (
-	// TODO: wrap secp256k1
 	"bytes"
 	"crypto/sha256"
 	"errors"
@@ -10,6 +9,7 @@ import (
 	"github.com/ncodysoftware/eps-go/hmacsha512"
 	"github.com/ncodysoftware/eps-go/ripemd160"
 	"github.com/ncodysoftware/eps-go/secp256k1"
+	"github.com/ncodysoftware/eps-go/stackerr"
 	"strconv"
 	"strings"
 )
@@ -29,58 +29,117 @@ var (
 	versionTestnetPrivate = [4]byte{0x04, 0x35, 0x83, 0x94}
 )
 
-func FromSeed(seed []byte, path string) (string, string, error) {
+func DeriveSeed(seed []byte, path string) (string, string, error) {
+	var rootExt extendedKey
 	dpath, err := parseDerivationPath(path)
 	if err != nil {
-		return "", "", err
+		return "", "", stackerr.Wrap(err)
 	}
 	root := hmacsha512.Sum512(bitcoinSeed[:], seed, nil)
-	var parentXpub [65]byte
-	if len(dpath) > 0 {
-		parentXpriv, err := derivePrivFromPriv(
-			root, dpath[:len(dpath)-1],
-		)
-		if err != nil {
-			return "", "", err
-		}
-		parentXpub, err = pubFromPriv(parentXpriv)
-		if err != nil {
-			return "", "", err
-		}
-	}
-	xpriv, err := derivePrivFromPriv(root, dpath)
+	rootExt.Version = versionMainnetPrivate
+	copy(rootExt.Key[1:], root[:32])
+	copy(rootExt.Chaincode[:], root[32:])
+	xprvExt, err := deriveXprv(&rootExt, dpath)
 	if err != nil {
-		return "", "", err
+		return "", "", stackerr.Wrap(err)
 	}
-	xpub, err := pubFromPriv(xpriv)
+	xpubExt, err := xpubFromXprv(&xprvExt)
 	if err != nil {
-		return "", "", err
+		return "", "", stackerr.Wrap(err)
 	}
-	xk := extendedKey{
-		Version: versionMainnetPrivate,
-		Depth:   byte(len(dpath)),
-	}
-	if len(dpath) != 0 {
-		xk.ChildNum = serializeUint32(dpath[len(dpath)-1])
-	}
-	copy(xk.Chaincode[:], xpriv[32:])
-	copy(xk.Key[1:], xpriv[:32])
-	if len(dpath) != 0 {
-		fp := hash160(parentXpub[:33])
-		copy(xk.Fingerprint[:], fp[:4])
-	}
-	encodedXpriv := extendedEncode(xk)
-	copy(xk.Key[:], xpub[:33])
-	xk.Version = versionMainnetPublic
-	encodedXpub := extendedEncode(xk)
-	return encodedXpub, encodedXpriv, nil
+	encodedXpub := extendedEncode(xpubExt)
+	encodedXprv := extendedEncode(xprvExt)
+	return encodedXpub, encodedXprv, nil
 }
 
-//func DeriveXpriv(xpriv string, path string) (string, error) {
-//
-//}
+func DeriveXprv(xpriv string, path string) (string, error) {
+	dpath, err := parseDerivationPath(path)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	decoded, err := extendedDecode(xpriv)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	exKey, err := deriveXprv(&decoded, dpath)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	encodedXpriv := extendedEncode(exKey)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	return encodedXpriv, nil
+}
+
+func deriveXprv(xpriv *extendedKey, path []uint32) (extendedKey, error) {
+	var (
+		privkeyChaincode  [64]byte
+		parentXpriv       [64]byte
+		parentFingerprint [4]byte
+		exKey             extendedKey
+		childNum          [4]byte
+		err               error
+	)
+	if len(path) == 0 {
+		return *xpriv, nil
+	}
+	copy(privkeyChaincode[:], xpriv.Key[1:])
+	copy(privkeyChaincode[32:], xpriv.Chaincode[:])
+	for _, derivation := range path {
+		parentXpriv = privkeyChaincode
+		if derivation&hardened != 0 {
+			privkeyChaincode, err = deriveHardenedPrivFromPriv(
+				privkeyChaincode, derivation,
+			)
+			if err != nil {
+				return exKey, stackerr.Wrap(err)
+			}
+		} else {
+			privkeyChaincode, err = deriveUnhardenedPrivFromPriv(
+				privkeyChaincode, derivation,
+			)
+			if err != nil {
+				return exKey, stackerr.Wrap(err)
+			}
+		}
+	}
+	if len(path) != 0 {
+		parentXpub, err := pubFromPriv(parentXpriv)
+		if err != nil {
+			return exKey, stackerr.Wrap(err)
+		}
+		parentHash := hash160(parentXpub[:33])
+		copy(parentFingerprint[:], parentHash[:4])
+		childNum = serializeUint32(path[len(path)-1])
+	}
+	exKey.Version = versionMainnetPrivate
+	exKey.Depth = byte(len(path)) + xpriv.Depth
+	exKey.Fingerprint = parentFingerprint
+	exKey.ChildNum = childNum
+	copy(exKey.Chaincode[:], privkeyChaincode[32:])
+	copy(exKey.Key[1:], privkeyChaincode[0:32])
+	return exKey, nil
+}
 
 func DeriveXpub(xpub string, path string) (string, error) {
+	dpath, err := parseDerivationPath(path)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	decoded, err := extendedDecode(xpub)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	exKey, err := deriveXpub(&decoded, dpath)
+	encodedXpub := extendedEncode(exKey)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	return encodedXpub, nil
+}
+
+func deriveXpub(xpub *extendedKey, path []uint32) (extendedKey, error) {
 	var (
 		pubkeyChaincode   [65]byte
 		childXpub         [65]byte
@@ -88,46 +147,74 @@ func DeriveXpub(xpub string, path string) (string, error) {
 		parentFingerprint [4]byte
 		exKey             extendedKey
 		childNum          [4]byte
+		err               error
 	)
-	dpath, err := parseDerivationPath(path)
-	if err != nil {
-		return "", err
-	}
-	decoded, err := extendedDecode(xpub)
-	if err != nil {
-		return "", err
-	}
-	copy(pubkeyChaincode[:], decoded.Key[:])
-	copy(pubkeyChaincode[33:], decoded.Chaincode[:])
-	for _, derivation := range dpath {
+	copy(pubkeyChaincode[:], xpub.Key[:])
+	copy(pubkeyChaincode[33:], xpub.Chaincode[:])
+	for _, derivation := range path {
 		if derivation&hardened != 0 {
-			return "", fmt.Errorf("hardened derivation from pubkey")
+			return exKey, fmt.Errorf(
+				"hardened derivation from pubkey",
+			)
 		}
 		parentXpub = childXpub
 		childXpub, err = deriveUnhardenedPubFromPub(
 			pubkeyChaincode, derivation,
 		)
 		if err != nil {
-			return "", err
+			return exKey, stackerr.Wrap(err)
 		}
 		pubkeyChaincode = childXpub
 	}
-	if len(dpath) != 0 {
+	if len(path) != 0 {
 		parentHash := hash160(parentXpub[:33])
 		copy(parentFingerprint[:], parentHash[:4])
-		childNum = serializeUint32(dpath[len(dpath)-1])
+		childNum = serializeUint32(path[len(path)-1])
 	}
 	exKey.Version = versionMainnetPublic
-	exKey.Depth = byte(len(dpath)) + decoded.Depth
+	exKey.Depth = byte(len(path)) + xpub.Depth
 	exKey.Fingerprint = parentFingerprint
 	exKey.ChildNum = childNum
 	copy(exKey.Chaincode[:], childXpub[33:])
 	copy(exKey.Key[:], childXpub[0:33])
-	encodedXpub := extendedEncode(exKey)
+	return exKey, nil
+}
+
+func XpubFromXprv(xprv string) (string, error) {
+	extXprv, err := extendedDecode(xprv)
 	if err != nil {
-		return "", err
+		return "", stackerr.Wrap(err)
 	}
-	return encodedXpub, nil
+	extPub, err := xpubFromXprv(&extXprv)
+	if err != nil {
+		return "", stackerr.Wrap(err)
+	}
+	xpub := extendedEncode(extPub)
+	return xpub, nil
+}
+
+func xpubFromXprv(xprv *extendedKey) (extendedKey, error) {
+	var (
+		keyChaincode [64]byte
+		xpub         extendedKey = *xprv
+	)
+	copy(keyChaincode[:], xprv.Key[1:])
+	copy(keyChaincode[32:], xprv.Chaincode[:])
+	pubkeyChaincode, err := pubFromPriv(keyChaincode)
+	if err != nil {
+		return extendedKey{}, stackerr.Wrap(err)
+	}
+	switch xpub.Version {
+	case versionMainnetPrivate:
+		xpub.Version = versionMainnetPublic
+	case versionTestnetPrivate:
+		xpub.Version = versionTestnetPublic
+	default:
+		return extendedKey{}, errBadKeyVersion
+	}
+	copy(xpub.Key[:], pubkeyChaincode[:33])
+	copy(xpub.Chaincode[:], pubkeyChaincode[33:])
+	return xpub, nil
 }
 
 func derivePrivFromPriv(
@@ -147,7 +234,7 @@ func derivePrivFromPriv(
 				goto start
 			}
 			if err != nil {
-				return d, err
+				return d, stackerr.Wrap(err)
 			}
 			keyChaincode = kc
 			continue
@@ -158,7 +245,7 @@ func derivePrivFromPriv(
 			goto start
 		}
 		if err != nil {
-			return d, err
+			return d, stackerr.Wrap(err)
 		}
 		keyChaincode = kc
 	}
@@ -176,7 +263,7 @@ func deriveUnhardenedPrivFromPriv(
 		[32]byte(keyChaincode[:32]),
 	)
 	if err != nil {
-		return [64]byte{}, err
+		return [64]byte{}, stackerr.Wrap(err)
 	}
 	serializedIndex := serializeUint32(index)
 	copy(data[:], pointCompressed[:])
@@ -238,11 +325,11 @@ func deriveUnhardenedPubFromPub(
 	IL, IR := I[:32], I[32:]
 	p, err := compressedFromBasePointMul([32]byte(IL))
 	if err != nil {
-		return result, err
+		return result, stackerr.Wrap(err)
 	}
 	key, err := compressedFromPointAdd([33]byte(keyChaincode[:33]), p)
 	if err != nil {
-		return result, err
+		return result, stackerr.Wrap(err)
 	}
 	copy(result[:], key[:])
 	copy(result[33:], IR[:])
@@ -258,11 +345,11 @@ func compressedFromPointAdd(
 	)
 	pa, err := secp256k1.PointDeserialize(pointA[:])
 	if err != nil {
-		return d, err
+		return d, stackerr.Wrap(err)
 	}
 	pb, err = secp256k1.PointDeserialize(pointB[:])
 	if err != nil {
-		return d, err
+		return d, stackerr.Wrap(err)
 	}
 	presult = secp256k1.PointAdd(&pa, &pb)
 	secp256k1.PointToAffine(&presult)
@@ -287,7 +374,7 @@ func pubFromPriv(keyChaincode [64]byte) ([65]byte, error) {
 	var result [65]byte
 	pub, err := compressedFromBasePointMul([32]byte(keyChaincode[:32]))
 	if err != nil {
-		return result, err
+		return result, stackerr.Wrap(err)
 	}
 	copy(result[:], pub[:])
 	copy(result[33:], keyChaincode[32:])
