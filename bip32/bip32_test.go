@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestBip32_DeriveSeed_vector1(t *testing.T) {
+func TestBip32_DeriveSeedStr_vector1(t *testing.T) {
 	seed := testutil.MustHexDecode("000102030405060708090a0b0c0d0e0f")
 	tests := []struct {
 		derivationPath string
@@ -46,7 +46,7 @@ func TestBip32_DeriveSeed_vector1(t *testing.T) {
 		},
 	}
 	derive := func(seed []byte, path string) (string, string, error) {
-		return DeriveSeed(seed, path)
+		return DeriveSeedStr(seed, path)
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestBip32_DeriveSeed_vector1(t *testing.T) {
 	}
 }
 
-func TestBip32_DeriveSeed_vector2(t *testing.T) {
+func TestBip32_DeriveSeedStr_vector2(t *testing.T) {
 	seed := testutil.MustHexDecode("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542")
 	tests := []struct {
 		derivationPath string
@@ -97,7 +97,7 @@ func TestBip32_DeriveSeed_vector2(t *testing.T) {
 		},
 	}
 	derive := func(seed []byte, path string) (string, string, error) {
-		return DeriveSeed(seed, path)
+		return DeriveSeedStr(seed, path)
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestBip32_DeriveSeed_vector2(t *testing.T) {
 	}
 }
 
-func TestBip32_DeriveSeed_vector3(t *testing.T) {
+func TestBip32_DeriveSeedStr_vector3(t *testing.T) {
 	seed := testutil.MustHexDecode("4b381541583be4423346c643850da4b320e46a87ae3d2a4e6da11eba819cd4acba45d239319ac14f863b8d5ab5a0d0c64d2e8a1e7d1457df2e5a3c51c73235be")
 	tests := []struct {
 		derivationPath string
@@ -128,7 +128,7 @@ func TestBip32_DeriveSeed_vector3(t *testing.T) {
 		},
 	}
 	derive := func(seed []byte, path string) (string, string, error) {
-		return DeriveSeed(seed, path)
+		return DeriveSeedStr(seed, path)
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestBip32_DeriveSeed_vector3(t *testing.T) {
 	}
 }
 
-func TestBip32_DeriveSeed_vector4(t *testing.T) {
+func TestBip32_DeriveSeedStr_vector4(t *testing.T) {
 	seed := testutil.MustHexDecode("3ddd5602285899a946114506157c7997e5444528f3003f6134712147db19b678")
 	tests := []struct {
 		derivationPath string
@@ -164,7 +164,7 @@ func TestBip32_DeriveSeed_vector4(t *testing.T) {
 		},
 	}
 	derive := func(seed []byte, path string) (string, string, error) {
-		return DeriveSeed(seed, path)
+		return DeriveSeedStr(seed, path)
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestBip32_DeriveSeed_vector4(t *testing.T) {
 	}
 }
 
-func TestBip32_DeriveSeed_vector5(t *testing.T) {
+func TestBip32_DeriveSeedStr_vector5(t *testing.T) {
 	tests := []struct {
 		xKey string
 		err  error
@@ -248,7 +248,7 @@ func TestBip32_DeriveSeed_vector5(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			_, err := extendedDecode(test.xKey)
+			_, err := ExtendedDecode(test.xKey)
 			assert.MustEqual(t, test.err, err)
 		})
 	}
@@ -261,7 +261,7 @@ func Test_ParseDerivationPath(t *testing.T) {
 	}{
 		{
 			path: "m/0H/1/2H/2/1000000000",
-			exp:  []uint32{0 | hardened, 1, 2 | hardened, 2, 1000000000},
+			exp:  []uint32{0 | KEY_HARDENED, 1, 2 | KEY_HARDENED, 2, 1000000000},
 		},
 	}
 	for _, test := range tests {
@@ -276,12 +276,12 @@ func Test_ParseDerivationPath(t *testing.T) {
 func Test_DecodeExtendedKey(t *testing.T) {
 	tests := []struct {
 		xkey string
-		exp  extendedKey
+		exp  ExtendedKey
 	}{
 		{
 			xkey: "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76",
-			exp: extendedKey{
-				Version: versionMainnetPrivate,
+			exp: ExtendedKey{
+				Version: VersionMainnetPrivate,
 				Depth:   0x5,
 				Fingerprint: [4]byte(testutil.MustHexDecode(
 					"d880d7d8",
@@ -299,8 +299,8 @@ func Test_DecodeExtendedKey(t *testing.T) {
 		},
 		{
 			xkey: "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy",
-			exp: extendedKey{
-				Version: versionMainnetPublic,
+			exp: ExtendedKey{
+				Version: VersionMainnetPublic,
 				Depth:   0x5,
 				Fingerprint: [4]byte(testutil.MustHexDecode(
 					"d880d7d8",
@@ -319,14 +319,14 @@ func Test_DecodeExtendedKey(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			decoded, err := extendedDecode(test.xkey)
+			decoded, err := ExtendedDecode(test.xkey)
 			assert.Must(t, err)
 			mustEqualExt(t, test.exp, decoded)
 		})
 	}
 }
 
-func Test_DeriveXprv(t *testing.T) {
+func Test_DeriveXprvStr(t *testing.T) {
 	tests := []struct {
 		xpriv string
 		path  string
@@ -345,14 +345,14 @@ func Test_DeriveXprv(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			xpriv, err := DeriveXprv(test.xpriv, test.path)
+			xpriv, err := DeriveXprvStr(test.xpriv, test.path)
 			assert.Must(t, err)
 			mustEqualEncodedExt(t, test.exp, xpriv)
 		})
 	}
 }
 
-func Test_DeriveXpub(t *testing.T) {
+func Test_DeriveXpubStr(t *testing.T) {
 	tests := []struct {
 		xpub string
 		path string
@@ -368,17 +368,27 @@ func Test_DeriveXpub(t *testing.T) {
 			path: "m/1/0",
 			exp:  "xpub6Ft2UWfkM7BbWZXSq13yb3YjbbdgxNkXxzT2mDuu4bztaJ3cztHsD262ktNNNsV3hiG8XBhxDExfMXeP2BqotN4WuzTu55qGbbRSMgcPviv",
 		},
+		{
+			xpub: "xpub69epmUGTgqauyyzsNXvuhmCHeHJWYPK6cSpzMDSWHqbuXVVuGxLJLDUbp6ByaQjLj6Jk6sWKehsad4QT2DtiPgnA47uRmHMvEhBYgPLqZwF",
+			path: "m/0/1",
+			exp:  "xpub6BjCcmDf9k83wtSzb6yqwe2hQdEoucPEi6baUHWJV9YKxtCdYnpANwjwrpsLx62y27Y5rg3pWaQShhfQX7QSSkbcSdMjh891exkGb9Q9tbo",
+		},
+		{
+			xpub: "xpub69epmUGTgqauyyzsNXvuhmCHeHJWYPK6cSpzMDSWHqbuXVVuGxLJLDUbp6ByaQjLj6Jk6sWKehsad4QT2DtiPgnA47uRmHMvEhBYgPLqZwF",
+			path: "m/0/2",
+			exp:  "xpub6BjCcmDf9k83zJhU86N3o5RvLEvLA7Yvs9Mrx1zxx1UZM4QdnDeDvHFPHCDnUHxRnJTkUUDxJdP3C2EiVwLZMipHzHe4JekCmVKeSR7tf3X",
+		},
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			xpub, err := DeriveXpub(test.xpub, test.path)
+			xpub, err := DeriveXpubStr(test.xpub, test.path)
 			assert.Must(t, err)
 			mustEqualEncodedExt(t, test.exp, xpub)
 		})
 	}
 }
 
-func Test_XpubFromXprv(t *testing.T) {
+func Test_XpubFromXprvStr(t *testing.T) {
 	tests := []struct {
 		xpriv string
 		exp   string
@@ -398,14 +408,14 @@ func Test_XpubFromXprv(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			xpub, err := XpubFromXprv(test.xpriv)
+			xpub, err := XpubFromXprvStr(test.xpriv)
 			assert.Must(t, err)
 			mustEqualEncodedExt(t, test.exp, xpub)
 		})
 	}
 }
 
-func mustEqualExt(t *testing.T, exp, got extendedKey) {
+func mustEqualExt(t *testing.T, exp, got ExtendedKey) {
 	if reflect.DeepEqual(exp, got) {
 		return
 	}
@@ -430,9 +440,9 @@ func mustEqualEncodedExt(t *testing.T, expS, gotS string) {
 	if reflect.DeepEqual(expS, gotS) {
 		return
 	}
-	exp, err := extendedDecode(expS)
+	exp, err := ExtendedDecode(expS)
 	assert.Must(t, err)
-	got, err := extendedDecode(gotS)
+	got, err := ExtendedDecode(gotS)
 	assert.Must(t, err)
 	t.Fatalf(
 		"\nexp: %x %x %x %x %x %x\ngot: %x %x %x %x %x %x\n",

@@ -4,11 +4,11 @@
 
 # ALL
 
-* base58
+* base58 #OK
 
-* bip32
+* bip32 #OK
 
-* scriptPubkey manager
+* scriptPubkey manager #OK
 
 * blockprocessor
 
