@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ncodysoftware/eps-go/assert"
-	"github.com/ncodysoftware/eps-go/secp256k1"
+	"ncody.com/ncgo.git/assert"
+	"ncody.com/ncgo.git/crypto/secp256k1"
 )
 
 func Test_ECDSA(t *testing.T) {
