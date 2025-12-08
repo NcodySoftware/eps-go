@@ -18,11 +18,11 @@ CREATE TABLE IF NOT EXISTS unspent_output (
 	scriptpubkey BLOB NOT NULL
 );
 ---
-CREATE TABLE IF NOT EXISTS transaction (
-	txid BLOB PRIMARY KEY,
-	blockhash BLOB,
-	serialized BLOB
-);
+--CREATE TABLE IF NOT EXISTS transaction (
+--	txid BLOB PRIMARY KEY,
+--	blockhash BLOB,
+--	serialized BLOB
+--);
 ---
 CREATE TABLE IF NOT EXISTS scriptpubkey_transaction (
 	scriptpubkey_hash BLOB NOT NULL,

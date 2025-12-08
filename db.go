@@ -3,11 +3,11 @@ package epsgo
 import (
 	"context"
 	"embed"
-	"os"
 
 	"ncody.com/ncgo.git/database/sql"
 	"ncody.com/ncgo.git/database/sql/migrator"
 	"ncody.com/ncgo.git/database/sql/sqlite"
+	"ncody.com/ncgo.git/stackerr"
 )
 
 //go:embed migrations
@@ -20,21 +20,36 @@ func must(err error) {
 	panic(err)
 }
 
-func MustOpenDB(ctx context.Context) sql.Database {
-	dirs, err := getXdgDirs(appName)
-	must(err)
-	dbFilePath := dirs.XDGDataHome+"/db.sqlite3"
-	var m migrator.Migrations
-	must(m.LoadFromEmbedFS(migrations, "migrations"))
+func MustOpenDB(ctx context.Context, cfg Config) sql.Database {
+	dbFilePath := cfg.XDGDirs.XDGDataHome+"/db.sqlite3"
 	var flag uint64
 	flag = migrator.FlagMigrateAllowUpgrade
-	if os.Getenv("MIGRATE_FRESH") == "1" {
+	if cfg.MigrateFresh == "1" {
 		flag |= migrator.FlagMigrateFresh
 	}
-	mg := migrator.NewSqlite(dbFilePath, m, flag)
-	_, err = mg.Migrate(ctx)
-	must(err)
-	db, err := sqlite.New(dbFilePath)
+	db, err := OpenDB(ctx, dbFilePath, flag)
 	must(err)
 	return db
+}
+
+func OpenDB(
+	ctx context.Context, dbFilePath string, migratorFlag uint64, 
+) (sql.Database, error) {
+	var (
+		m migrator.Migrations
+	)
+	err := m.LoadFromEmbedFS(migrations, "migrations")
+	if err != nil {
+		return nil, stackerr.Wrap(err)
+	}
+	mg := migrator.NewSqlite(dbFilePath, m, migratorFlag)
+	_, err = mg.Migrate(ctx)
+	if err != nil {
+		return nil, stackerr.Wrap(err)
+	}
+	db, err := sqlite.New(dbFilePath)
+	if err != nil {
+		return nil, stackerr.Wrap(err)
+	}
+	return db, nil
 }

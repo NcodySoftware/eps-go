@@ -12,7 +12,7 @@ import (
 
 	epsgo "github.com/ncodysoftware/eps-go"
 	"ncody.com/ncgo.git/database/sql"
-	"ncody.com/ncgo.git/database/sql/sqlite"
+	"ncody.com/ncgo.git/database/sql/migrator"
 	"ncody.com/ncgo.git/log"
 )
 
@@ -20,21 +20,26 @@ type TCtx struct {
 	C context.Context
 	D sql.Database
 	L *log.Logger
+	Cfg *epsgo.Config
 	err error
 }
 
 var (
 	tCtx TCtx
-	tCtxOnce sync.Once
+	tCtxMu sync.Mutex
 )
 
-func GetTCtx(t *testing.T) {
-	tCtxOnce.Do(func() {
-		setup(t)
-	})
+func GetTCtx(t *testing.T) (*TCtx, func()) {
+	tCtxMu.Lock()
+	setup(t)
 	if tCtx.err != nil {
 		t.Skip(tCtx.err)
 	}
+	f := func() {
+		defer tCtxMu.Unlock()
+		tCtx.D.Close(tCtx.C)
+	}
+	return &tCtx, f
 }
 
 func setup(t *testing.T) {
@@ -42,17 +47,15 @@ func setup(t *testing.T) {
 		err error
 	)
 	tCtx.C = t.Context()
-	config, err := epsgo.GetConfig()
+	tCtx.Cfg, err = epsgo.GetConfig()
 	if err != nil {
 		tCtx.err = err
 		return
 	}
-	tCtx.D, err = sqlite.New(config.SqliteDBPath)
-	if err != nil {
-		tCtx.err = err
-		return
-	}
-	tCtx.L = log.New(log.LevelFromString(config.LogLevel), "eps-go")
+	tCtx.D, tCtx.err = epsgo.OpenDB(
+		tCtx.C, tCtx.Cfg.SqliteDBPath, migrator.FlagMigrateFresh,
+	)
+	tCtx.L = log.New(log.LevelFromString(tCtx.Cfg.LogLevel), "eps-go")
 }
 
 type BenchParams struct {
