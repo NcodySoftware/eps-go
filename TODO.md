@@ -14,7 +14,16 @@
 
 * mempoolprocessor
 
+* walletmanager
+
+* eps-server
+
+
 # Description
+
+eps-server: walletmanager
+
+walletmanager: btcclient
 
 block_scan: block scriptpubkeys utxos 
 	transactions 

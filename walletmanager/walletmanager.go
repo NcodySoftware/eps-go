@@ -1,30 +1,45 @@
 package walletmanager
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 
 	"ncody.com/ncgo.git/bitcoin"
 	"ncody.com/ncgo.git/bitcoin/bip32"
+	"ncody.com/ncgo.git/bitcoin/scriptpubkey"
 	"ncody.com/ncgo.git/database/sql"
 	"ncody.com/ncgo.git/stackerr"
 )
 
 var (
-	errNotFound = errors.New("not found")
+	errNoMatchingScriptPubkey = errors.New("no matching scriptPubkey")
 )
 
+
+type ct = context.Context
+type dt = sql.Database
+
 type walletManager struct {
-	wallets []wallet
-	scriptPubkeyHashIndex map[[32]byte]scriptPubkeyInfo
-	db sql.Database
+	network network
+	scriptPubkeyMan *scriptPubkeyMan
+}
+
+type scriptPubkeyMan struct {
+	masterKeys []bip32.ExtendedKey
+	scriptKind scriptpubkey.Kind
+	scriptPubkeys [][]byte
+}
+
+func New() *walletManager {
+	return &walletManager{}
 }
 
 func (w *walletManager) processBlock(
-	ctx context.Context,
-	db sql.Database,
+	ctx ct,
+	db dt,
 	block *bitcoin.Block,
+	buf *[]byte,
 ) error {
 	/*
 	for each block:
@@ -40,41 +55,87 @@ func (w *walletManager) processBlock(
 				save transaction
 				delete output
 				save scriptpubkey_transaction
-				
 	*/
-	panic("TODO"); err := w.storeBlockHeader(ctx, db, &storeBlockHeaderData{})
+	err := storeBlockHeader(ctx, db, block, w.network, buf)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	for i, _ := range block.Transactions {
-		err := w.processTransaction(
-			ctx, db, block, &block.Transactions[i],
-		)
-		if err != nil {
+	for i := range block.Transactions {
+		processTransaction()
+	}
+}
+
+type network byte
+
+const (
+	main network = iota
+	testnet
+	regtest
+)
+
+var genesisRegtest = [32]byte{
+	0x06,0x22,0x6e,0x46,0x11,0x1a,0x0b,0x59,
+	0xca,0xaf,0x12,0x60,0x43,0xeb,0x5b,0xbf,
+	0x28,0xc3,0x4f,0x3a,0x5e,0x33,0x2a,0x1f,
+	0xc7,0xb2,0xb7,0x3c,0xf1,0x88,0x91,0x0f,
+}
+
+func getGenesis(n network) *[32]byte {
+	switch n {
+	case regtest:
+		return &genesisRegtest
+	default:
+		panic("TODO")
+	}
+}
+
+func storeBlockHeader(
+	ctx ct,
+	db dt,
+	block *bitcoin.Block,
+	n network,
+	buf *[]byte,
+) error {
+	var (
+		prevBlockHeight int
+		err error
+		buf2 []byte
+	)
+	if buf == nil {
+		buf = &buf2
+	}
+	prevBlockHeight, err = rSelectBlockHeight(
+		ctx, db, block.PreviousBlock,
+	)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		if !bytes.Equal(getGenesis(n)[:], block.PreviousBlock[:]) {
 			return stackerr.Wrap(err)
 		}
+	} else if err != nil {
+		return stackerr.Wrap(err)
 	}
-	return nil
-}
-
-type storeBlockHeaderData struct {
-	Hash [32]byte
-	Height int
-	Serialized []byte
-}
-
-func (w *walletManager) storeBlockHeader(
-	ctx context.Context, db sql.Database, data *storeBlockHeaderData,
-) error {
-	s := `
-	INSERT INTO blockheader
-	(hash, height, data)
-	VALUES
-	($1, $2, $3)
-	;
-	`
-	_, err := db.Exec(
-		ctx, s, data.Hash[:], data.Height, data.Serialized,
+	bh := bitcoin.Header{
+		BlockVersion: block.Version,
+		PreviousBlock: block.PreviousBlock,
+		MerkleRoot: block.MerkleRoot,
+		Timestamp: block.Time,
+		NBits: block.Bits,
+		Nonce: block.Nonce,
+		TxCount: block.TransactionCount,
+	}
+	if bh.TxCount != 0 {
+		bh.Transactions = make([][32]byte, bh.TxCount)
+		for i := range bh.TxCount {
+			bh.Transactions[i] = block.Transactions[i].Txid(buf)
+		}
+	}
+	bhash := block.Hash()
+	err = rInsertBlockHeader(
+		ctx,
+		db,
+		bhash,
+		prevBlockHeight+1,
+		bh.Serialize((*buf)[:0]),
 	)
 	if err != nil {
 		return stackerr.Wrap(err)
@@ -82,188 +143,45 @@ func (w *walletManager) storeBlockHeader(
 	return nil
 }
 
-func (w *walletManager) processTransaction(
-	ctx context.Context,
-	db sql.Database,
-	block *bitcoin.Block,
-	tx *bitcoin.Transaction,
-) error {
-	for vout := range tx.Outputs {
-		err := w.processOutput(
-			ctx, db, block, tx, vout, &tx.Outputs[vout],
-		)
-		if err != nil {
-			return stackerr.Wrap(err)
-		}
+func processTransaction(tx) error {
+	for i := range tx.Outputs {
+		processOutput()
 	}
-	for vin := range tx.Inputs {
-		err := w.processInput(ctx, db, block, tx, &tx.Inputs[vin])
-		if err != nil {
-			return stackerr.Wrap(err)
-		}
+	for i := range tx.Inputs {
+		processTxInput()
 	}
-	panic("TODO")
 }
 
-func (w *walletManager) processOutput(
-	ctx context.Context,
-	db sql.Database,
-	block *bitcoin.Block,
-	tx *bitcoin.Transaction,
-	vout int,
-	output *bitcoin.Output,
-) error {
-	/*
-	for each output matching scriptpubkey:
-		update receive/change index
-		refill receive/change scriptpubkeys
-		save transaction
-		save output
-		save scriptpubkey_transaction
-	*/
-	info, err := w.getScriptPubkeyInfo(output.ScriptPubkey)
-	if err == errNotFound {
-		return nil
-	}
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	err = w.refillAccount(ctx, db, info)
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	err = w.storeTransaction(ctx, db, block, tx)
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	err = w.storeUnspent(ctx, db, tx, vout, output)
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	err = w.storeScriptPubkeyTransaction(ctx, db, output.ScriptPubkey, tx)
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	return nil
-}
-
-func (w *walletManager) getScriptPubkeyInfo(
-	scriptpubkey []byte,
-) (scriptPubkeyInfo, error) {
-	info, ok := w.scriptPubkeyHashIndex[sha256.Sum256(scriptpubkey)]
-	if !ok {
-		return info, errNotFound
-	}
-	return info, nil
-}
-
-func (w *walletManager) refillAccount(
-	ctx context.Context, db sql.Database, info scriptPubkeyInfo,
-) error {
-	panic("TODO")
-}
-
-func (w *walletManager) storeTransaction(
-	ctx context.Context,
-	db sql.Database,
-	block *bitcoin.Block,
-	tx *bitcoin.Transaction,
-) error {
-	panic("TODO")
-}
-
-func (w *walletManager) storeUnspent(
-	ctx context.Context,
-	db sql.Database,
-	tx *bitcoin.Transaction,
-	vout int,
-	output *bitcoin.Output,
-) error {
-	panic("TODO")
-}
-
-func (w *walletManager) storeScriptPubkeyTransaction(
-	ctx context.Context,
-	db sql.Database,
+func processTxOutput(
+	ctx ct,
+	db dt,
+	blockhash [32]byte,
+	txid [32]byte,
+	serializedTx []byte,
 	scriptPubkey []byte,
-	tx *bitcoin.Transaction,
+	scriptPubkeyHash [32]byte,
+	txidVout [32+4]byte,
+	satoshi uint64,
 ) error {
-	panic("TODO")
-}
-
-func (w *walletManager) processInput(
-	ctx context.Context,
-	db sql.Database,
-	block *bitcoin.Block,
-	tx *bitcoin.Transaction,
-	input *bitcoin.Input,
-) error {
-	/*
-	for each input spending matching utxo:
-		save transaction
-		delete output
-		save scriptpubkey_transaction
-	*/
-	output, err := w.getUnspent(ctx, db, input.Txid, int(input.Vout))
-	if err == errNotFound {
+	info, ok := getScriptPubkeyInfo(scriptPubkey)
+	if !ok {
 		return nil
-	} 
+	}
+	
+	err := rInsertTransaction(ctx, db, txid, blockhash, serializedTx)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	err = w.storeTransaction(ctx, db, block, tx)
+	err = rInsertScriptPubkeyTransaction(ctx, db, scriptPubkeyHash, txid)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	err = w.deleteOutput(ctx, db, input.Txid, int(input.Vout))
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	err = w.storeScriptPubkeyTransaction(ctx, db, output.ScriptPubkey, tx)
+	err = rInsertUnspentOutput(ctx, db, txidvout, satoshi, scriptPubkey)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
 	return nil
 }
 
-func (w *walletManager) getUnspent(
-	ctx context.Context,
-	db sql.Database,
-	txid [32]byte,
-	vout int,
-) (unspentOutput, error) {
-	panic("TODO")
-}
-
-func (w *walletManager) deleteOutput(
-	ctx context.Context,
-	db sql.Database,
-	txid [32]byte,
-	vout int,
-) error {
-	panic("TODO")
-}
-
-type wallet struct {
-	Accounts [2]walletAccount
-}
-
-type walletAccount struct {
-	ScriptPubkeys [][]byte
-	BaseKeys []bip32.ExtendedKey
-	ScriptKind byte
-	NextIndex int
-}
-
-type scriptPubkeyInfo struct {
-	WalletIdx int
-	AccountIdx int
-	ScriptPubkeyIdx int
-}
-
-type unspentOutput struct {
-	Txid [32]byte
-	Vout int
-	Satoshi uint64
-	ScriptPubkey []byte
+func processTxInput(input) error {
 }

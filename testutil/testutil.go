@@ -2,12 +2,58 @@ package testutil
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
+
+	epsgo "github.com/ncodysoftware/eps-go"
+	"ncody.com/ncgo.git/database/sql"
+	"ncody.com/ncgo.git/database/sql/sqlite"
+	"ncody.com/ncgo.git/log"
 )
+
+type TCtx struct {
+	C context.Context
+	D sql.Database
+	L *log.Logger
+	err error
+}
+
+var (
+	tCtx TCtx
+	tCtxOnce sync.Once
+)
+
+func GetTCtx(t *testing.T) {
+	tCtxOnce.Do(func() {
+		setup(t)
+	})
+	if tCtx.err != nil {
+		t.Skip(tCtx.err)
+	}
+}
+
+func setup(t *testing.T) {
+	var (
+		err error
+	)
+	tCtx.C = t.Context()
+	config, err := epsgo.GetConfig()
+	if err != nil {
+		tCtx.err = err
+		return
+	}
+	tCtx.D, err = sqlite.New(config.SqliteDBPath)
+	if err != nil {
+		tCtx.err = err
+		return
+	}
+	tCtx.L = log.New(log.LevelFromString(config.LogLevel), "eps-go")
+}
 
 type BenchParams struct {
 	Name string
