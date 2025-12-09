@@ -1,9 +1,10 @@
 ---
 BEGIN;
 ---
-CREATE TABLE IF NOT EXISTS master_key (
+CREATE TABLE IF NOT EXISTS account (
 	hash BLOB PRIMARY KEY,
-	next_index INTEGER NOT NULL
+	next_index INTEGER NOT NULL,
+	height INTEGER NOT NULL
 );
 ---
 CREATE TABLE IF NOT EXISTS blockheader (
@@ -20,8 +21,8 @@ CREATE TABLE IF NOT EXISTS unspent_output (
 ---
 --CREATE TABLE IF NOT EXISTS transaction (
 --	txid BLOB PRIMARY KEY,
---	blockhash BLOB,
---	serialized BLOB
+--	blockhash BLOB NOT NULL,
+--	serialized BLOB NOT NULL
 --);
 ---
 CREATE TABLE IF NOT EXISTS scriptpubkey_transaction (
