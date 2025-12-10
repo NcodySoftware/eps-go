@@ -3,9 +3,12 @@ package walletsync
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"ncody.com/ncgo.git/bitcoin"
 	"ncody.com/ncgo.git/database/sql"
+	"ncody.com/ncgo.git/log"
 	"ncody.com/ncgo.git/stackerr"
 )
 
@@ -28,6 +31,7 @@ type transactionHandler interface {
 
 type synchronizer struct {
 	db         sql.Database
+	log *log.Logger
 	bGetter    blockGetter
 	txHandlers []transactionHandler
 	blockBuf   []byte
@@ -36,19 +40,33 @@ type synchronizer struct {
 
 func NewSynchronizer(
 	db sql.Database,
+	log *log.Logger,
 	bGetter blockGetter,
 	txHandlers []transactionHandler,
 	checkpoint *blockHeaderData,
 ) *synchronizer {
 	return &synchronizer{
 		db:         db,
+		log: log,
 		bGetter:    bGetter,
 		txHandlers: txHandlers,
 		checkpoint: checkpoint,
 	}
 }
 
-func (s *synchronizer) Run(ctx context.Context) error {
+func (s *synchronizer) SyncLoop(ctx context.Context) error {
+	for {
+		err := s.Sync(ctx)
+		if err != nil {
+			return stackerr.Wrap(err)
+		}
+		time.Sleep(time.Second * 30)
+	}
+}
+
+func (s *synchronizer) Sync(ctx context.Context) error {
+	sleepFor := time.Millisecond * 100
+	startDeadline := time.Now().Add(time.Second * 30)
 	for {
 		var (
 			block     bitcoin.Block
@@ -56,9 +74,25 @@ func (s *synchronizer) Run(ctx context.Context) error {
 			err       error
 		)
 		err = s.bGetter.GetBlock(ctx, &s.checkpoint.Hash, &block)
+		if err != nil && errors.Is(err, bitcoin.ErrClientNotStarted)  {
+			if time.Until(startDeadline) < 0 {
+				return fmt.Errorf("bitcoin client not started")
+			}
+			time.Sleep(sleepFor)
+			sleepFor <<= 1
+			continue
+		}
+		if err != nil && errors.Is(err, errNoBlocks){
+			return  nil
+		}
 		if err != nil {
 			return stackerr.Wrap(err)
 		}
+		s.log.Infof(
+			"NEW BLOCK: height: %d; hash: %x",
+			s.checkpoint.Height+1,
+			blockHash[:],
+		)
 		blockHash = block.Hash(&s.blockBuf)
 		err = sql.Execute(ctx, s.db, func(db sql.Database) error {
 			return s.processBlock(

@@ -5,15 +5,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/ncodysoftware/eps-go/testutil"
+	"github.com/ncodysoftware/eps-go/walletsync/internal/testdata"
 	"ncody.com/ncgo.git/assert"
 	"ncody.com/ncgo.git/bitcoin"
+	"ncody.com/ncgo.git/bitcoin/bip32"
+	"ncody.com/ncgo.git/bitcoin/scriptpubkey"
 	"ncody.com/ncgo.git/database/sql"
 )
 
-func TestIntegration_walletsync(t *testing.T) {
+func TestIntegration_synchonizer(t *testing.T) {
 	tc, cls := testutil.GetTCtx(t)
 	defer cls()
 	bg := newFakeBlockGetter(t)
@@ -21,8 +25,8 @@ func TestIntegration_walletsync(t *testing.T) {
 	var cpt blockHeaderData
 	err := lastBlockData(tc.C, tc.D, regtest, &cpt)
 	assert.Must(t, err)
-	s := NewSynchronizer(tc.D, bg, []transactionHandler{th}, &cpt)
-	err = s.Run(tc.C)
+	s := NewSynchronizer(tc.D, tc.L, bg, []transactionHandler{th}, &cpt)
+	err = s.Sync(tc.C)
 	assert.MustEqual(
 		t, true, errors.Is(err, context.Canceled),
 	)
@@ -36,6 +40,42 @@ func TestIntegration_walletsync(t *testing.T) {
 	err = row.Scan(&count)
 	assert.Must(t, err)
 	assert.MustEqual(t, 2, count)
+}
+
+func TestIntegration_synchronizer2(t *testing.T) {
+	tc, cls := testutil.GetTCtx(t)
+	defer cls()
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(tc.C)
+	defer cancel()
+	bcli := bitcoin.NewClient(
+		ctx, tc.Cfg.BTCNodeAddr, tc.L, bitcoin.MagicRegtest,
+	)
+	wg.Go(func() {
+		bcli.Start()
+	})
+	bh := NewBcliAdapter(bcli)
+	wp := walletParams{
+		CreatedAtHeight: 1,
+		ScriptKind:     scriptpubkey.SK_P2WPKH,
+		Reqsigs:         1,
+		KeySet:          []bip32.ExtendedKey{
+			testdata.DefaultKeySet.RootAccount,
+		},
+	}
+	wm, err := NewWalletManager(ctx, tc.D, wp, tc.L)
+	assert.Must(t, err)
+	checkpoint := blockHeaderData{
+		Hash:   genesisBlockHash[regtest],
+		Height: 0,
+	}
+	wd := NewSynchronizer(
+		tc.D, tc.L, bh, []transactionHandler{wm}, &checkpoint,
+	)
+	err = wd.Sync(ctx)
+	assert.Must(t, err)
+	cancel()
+	wg.Wait()
 }
 
 type fakeBlockGetter struct {
