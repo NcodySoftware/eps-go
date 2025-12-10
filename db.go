@@ -21,7 +21,7 @@ func must(err error) {
 }
 
 func MustOpenDB(ctx context.Context, cfg Config) sql.Database {
-	dbFilePath := cfg.XDGDirs.XDGDataHome+"/db.sqlite3"
+	dbFilePath := cfg.XDGDirs.XDGDataHome + "/db.sqlite3"
 	var flag uint64
 	flag = migrator.FlagMigrateAllowUpgrade
 	if cfg.MigrateFresh == "1" {
@@ -33,7 +33,7 @@ func MustOpenDB(ctx context.Context, cfg Config) sql.Database {
 }
 
 func OpenDB(
-	ctx context.Context, dbFilePath string, migratorFlag uint64, 
+	ctx context.Context, dbFilePath string, migratorFlag uint64,
 ) (sql.Database, error) {
 	var (
 		m migrator.Migrations

@@ -1,0 +1,4 @@
+all:
+
+fmt:
+	@gofmt -w .

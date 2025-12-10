@@ -8,15 +8,15 @@ import (
 	"ncody.com/ncgo.git/stackerr"
 )
 
-type blockData struct {
-	Hash [32]byte
-	Height int 
+type blockHeaderData struct {
+	Hash   [32]byte
+	Height int
 }
 
 func rSelectLastBlockHeaderData(
 	ctx context.Context,
 	db sql.Database,
-	out *blockData,
+	out *blockHeaderData,
 ) error {
 	s := `
 	SELECT hash, height
@@ -61,9 +61,9 @@ func rInsertBlockHeader(
 }
 
 type accountData struct {
-	Hash [32]byte
+	Hash      [32]byte
 	NextIndex int
-	Height int
+	Height    int
 }
 
 func rSelectAccountData(
@@ -135,7 +135,7 @@ func rInsertTransaction(
 func rInsertUtxo(
 	ctx context.Context,
 	db sql.Database,
-	txidVout *[32+4]byte,
+	txidVout *[32 + 4]byte,
 	satoshi uint64,
 	scriptPubkeyHash *[32]byte,
 ) error {
@@ -157,27 +157,35 @@ func rInsertUtxo(
 }
 
 type utxoData struct {
-	TxidVout [32+4]byte
-	Satoshi uint64
+	TxidVout         [32 + 4]byte
+	Satoshi          uint64
 	ScriptPubkeyHash [32]byte
 }
 
-func rSelectUtxo(
+func rSelectAllUtxos(
 	ctx context.Context,
 	db sql.Database,
-	txidVout *[32+4]byte,
-	out *utxoData,
+	out *[]utxoData,
 ) error {
 	s := `
-	SELECT satoshi, scriptpubkey_hash
+	SELECT txid_vout, satoshi, scriptpubkey_hash
 	FROM unspent_output
-	WHERE txid_vout = $1
 	;
 	`
-	spkh := bufWrapper(out.ScriptPubkeyHash[:])
-	err := db.QueryRow(ctx, s, txidVout[:]).Scan(&out.Satoshi, &spkh)
+	rows, err := db.Query(ctx, s)
 	if err != nil {
 		return stackerr.Wrap(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ud utxoData
+		tv := bufWrapper(ud.TxidVout[:])
+		sh := bufWrapper(ud.ScriptPubkeyHash[:])
+		err := rows.Scan(&tv, &ud.Satoshi, &sh)
+		if err != nil {
+			return stackerr.Wrap(err)
+		}
+		*out = append(*out, ud)
 	}
 	return nil
 }
@@ -185,7 +193,7 @@ func rSelectUtxo(
 func rDeleteUtxo(
 	ctx context.Context,
 	db sql.Database,
-	txidVout *[32+4]byte,
+	txidVout *[32 + 4]byte,
 ) error {
 	s := `
 	DELETE FROM unspent_output
@@ -227,7 +235,7 @@ func rInsertScriptPubkeyTx(
 
 type scriptPubkeyTxData struct {
 	ScriptPubkeyHash [32]byte
-	Txid [32]byte
+	Txid             [32]byte
 }
 
 func rUpdateAccount(

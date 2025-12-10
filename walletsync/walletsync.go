@@ -27,22 +27,22 @@ type transactionHandler interface {
 }
 
 type synchronizer struct {
-	db sql.Database
-	bGetter blockGetter
-	txHandlers []transactionHandler 
-	blockBuf []byte
-	checkpoint *blockData
+	db         sql.Database
+	bGetter    blockGetter
+	txHandlers []transactionHandler
+	blockBuf   []byte
+	checkpoint *blockHeaderData
 }
 
 func NewSynchronizer(
 	db sql.Database,
 	bGetter blockGetter,
 	txHandlers []transactionHandler,
-	checkpoint *blockData,
+	checkpoint *blockHeaderData,
 ) *synchronizer {
 	return &synchronizer{
-		db: db,
-		bGetter: bGetter,
+		db:         db,
+		bGetter:    bGetter,
 		txHandlers: txHandlers,
 		checkpoint: checkpoint,
 	}
@@ -51,9 +51,9 @@ func NewSynchronizer(
 func (s *synchronizer) Run(ctx context.Context) error {
 	for {
 		var (
-			block bitcoin.Block
+			block     bitcoin.Block
 			blockHash [32]byte
-			err error
+			err       error
 		)
 		err = s.bGetter.GetBlock(ctx, &s.checkpoint.Hash, &block)
 		if err != nil {
@@ -133,17 +133,17 @@ var genesisBlockHash = [3][32]byte{
 	{}, // TODO
 	{}, // TODO
 	{
-		0x06,0x22,0x6e,0x46,0x11,0x1a,0x0b,0x59,
-		0xca,0xaf,0x12,0x60,0x43,0xeb,0x5b,0xbf,
-		0x28,0xc3,0x4f,0x3a,0x5e,0x33,0x2a,0x1f,
-		0xc7,0xb2,0xb7,0x3c,0xf1,0x88,0x91,0x0f,
+		0x06, 0x22, 0x6e, 0x46, 0x11, 0x1a, 0x0b, 0x59,
+		0xca, 0xaf, 0x12, 0x60, 0x43, 0xeb, 0x5b, 0xbf,
+		0x28, 0xc3, 0x4f, 0x3a, 0x5e, 0x33, 0x2a, 0x1f,
+		0xc7, 0xb2, 0xb7, 0x3c, 0xf1, 0x88, 0x91, 0x0f,
 	},
 }
 
 func lastBlockData(
-	ctx context.Context, db sql.Database, n network, out *blockData,
+	ctx context.Context, db sql.Database, n network, out *blockHeaderData,
 ) error {
-	err := rSelectLastBlockHeaderData(ctx, db, out) 
+	err := rSelectLastBlockHeaderData(ctx, db, out)
 	if err != nil && errors.Is(err, sql.ErrNoRows) {
 		out.Height = 0
 		out.Hash = genesisBlockHash[int(n)]

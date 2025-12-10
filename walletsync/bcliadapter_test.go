@@ -16,7 +16,7 @@ func TestIntegration_bcliAdapter(t *testing.T) {
 	tc, cls := testutil.GetTCtx(t)
 	defer cls()
 	var (
-		wg sync.WaitGroup
+		wg     sync.WaitGroup
 		cancel func()
 	)
 	defer wg.Wait()

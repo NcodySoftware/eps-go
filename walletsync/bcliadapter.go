@@ -14,14 +14,14 @@ var (
 )
 
 type bcliAdapter struct {
-	bcli *bitcoin.Client
+	bcli  *bitcoin.Client
 	cache map[[32]byte]bitcoin.Header
-	buf []byte
+	buf   []byte
 }
 
 func NewBcliAdapter(bcli *bitcoin.Client) *bcliAdapter {
 	return &bcliAdapter{
-		bcli: bcli,
+		bcli:  bcli,
 		cache: map[[32]byte]bitcoin.Header{},
 	}
 }
@@ -31,10 +31,10 @@ func (b *bcliAdapter) GetBlock(
 ) error {
 	const maxCacheLen = 2000
 	var (
-		header bitcoin.Header
+		header  bitcoin.Header
 		headers []bitcoin.Header
-		ok bool
-		err error
+		ok      bool
+		err     error
 	)
 	header, ok = b.cache[*prevhash]
 	if !ok {
@@ -47,7 +47,7 @@ func (b *bcliAdapter) GetBlock(
 		if len(headers) == 0 {
 			return errNoBlocks
 		}
-		if len(headers) + len(b.cache) > maxCacheLen {
+		if len(headers)+len(b.cache) > maxCacheLen {
 			b.cleanCache()
 		}
 		for i := 0; i < maxCacheLen && i < len(headers); i++ {
@@ -57,7 +57,7 @@ func (b *bcliAdapter) GetBlock(
 		if !ok {
 			return fmt.Errorf("bad headers returned from bcli")
 		}
-	} 	
+	}
 	hash := header.Hash(&b.buf)
 	*out, err = b.bcli.GetBlock(ctx, hash)
 	if err != nil {

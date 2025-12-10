@@ -17,15 +17,15 @@ import (
 )
 
 type TCtx struct {
-	C context.Context
-	D sql.Database
-	L *log.Logger
+	C   context.Context
+	D   sql.Database
+	L   *log.Logger
 	Cfg *epsgo.Config
 	err error
 }
 
 var (
-	tCtx TCtx
+	tCtx   TCtx
 	tCtxMu sync.Mutex
 )
 

@@ -17,35 +17,38 @@ import (
 
 const gap = 2000
 
+var errNotFound = errors.New("not found")
+
 type walletAccount struct {
 	AccountMaster []bip32.ExtendedKey
-	Hash [32]byte
-	ScriptKind scriptpubkey.Kind
-	Reqsigs byte
-	NextIndex int
-	NDerived int
-	Height int
+	Hash          [32]byte
+	ScriptKind    scriptpubkey.Kind
+	Reqsigs       byte
+	NextIndex     int
+	NDerived      int
+	Height        int
 }
 
 type walletParams struct {
 	CreatedAtHeight int
-	ScriptKind scriptpubkey.Kind
-	Reqsigs byte
-	KeySet []bip32.ExtendedKey
+	ScriptKind      scriptpubkey.Kind
+	Reqsigs         byte
+	KeySet          []bip32.ExtendedKey
 }
 
 type scriptPubkeyInfo struct {
 	ScriptPubkey []byte
-	Account int
-	Index int
+	Account      int
+	Index        int
 }
 
 type walletManager struct {
-	db sql.Database
-	accounts [2]walletAccount
+	db            sql.Database
+	accounts      [2]walletAccount
+	bufPool       sync.Pool
+	log           *log.Logger
 	scriptPubkeys map[[32]byte]scriptPubkeyInfo
-	bufPool sync.Pool
-	log *log.Logger
+	utxoMan       *utxoManager
 }
 
 func NewWalletManager(
@@ -55,10 +58,15 @@ func NewWalletManager(
 	log *log.Logger,
 ) (*walletManager, error) {
 	var (
-		w walletManager
+		w   walletManager
+		err error
 	)
 	w.bufPool.New = func() any {
 		return make([]byte, 0)
+	}
+	w.utxoMan, err = newUtxoManager(ctx, db)
+	if err != nil {
+		return nil, stackerr.Wrap(err)
 	}
 	w.log = log
 	w.scriptPubkeys = make(map[[32]byte]scriptPubkeyInfo)
@@ -67,7 +75,7 @@ func NewWalletManager(
 		if err != nil {
 			return nil, stackerr.Wrap(err)
 		}
-		err = w.refillScriptPubkey(i)
+		err = w.refillScriptPubkeys(i)
 		if err != nil {
 			return nil, stackerr.Wrap(err)
 		}
@@ -119,7 +127,7 @@ func (w *walletManager) HandleTransaction(
 			out.ScriptPubkey,
 			out.Amount,
 		)
-		var txidVout [32+4]byte
+		var txidVout [32 + 4]byte
 		makeTxidVout(txid, uint32(i), txidVout[:0])
 		err := w.processNewUtxo(
 			ctx,
@@ -137,11 +145,11 @@ func (w *walletManager) HandleTransaction(
 		}
 	}
 	for _, in := range tx.Inputs {
-		var txidVout [32+4]byte
+		var txidVout [32 + 4]byte
 		makeTxidVout(&in.Txid, in.Vout, txidVout[:0])
 		var utxo utxoData
-		err := rSelectUtxo(ctx, db, &txidVout, &utxo)
-		if err != nil && errors.Is(err, sql.ErrNoRows) {
+		err := w.utxoMan.load(&txidVout, &utxo)
+		if err == errNotFound {
 			continue
 		} else if err != nil {
 			return stackerr.Wrap(err)
@@ -228,7 +236,7 @@ func (w *walletManager) setupAccount(
 	return nil
 }
 
-func (w *walletManager) refillScriptPubkey(
+func (w *walletManager) refillScriptPubkeys(
 	accIdx int,
 ) error {
 	ntarget := gap + w.accounts[accIdx].NextIndex
@@ -265,8 +273,8 @@ func (w *walletManager) refillScriptPubkey(
 		}
 		w.scriptPubkeys[sha256.Sum256(d)] = scriptPubkeyInfo{
 			ScriptPubkey: d,
-			Account: accIdx,
-			Index:   w.accounts[accIdx].NDerived+i,
+			Account:      accIdx,
+			Index:        w.accounts[accIdx].NDerived + i,
 		}
 	}
 	w.accounts[accIdx].NDerived += int(count)
@@ -278,9 +286,9 @@ func (w *walletManager) processNewUtxo(
 	db sql.Database,
 	sHash *[32]byte,
 	sInfo *scriptPubkeyInfo,
-	blockHash *[32]byte, 
+	blockHash *[32]byte,
 	txid *[32]byte,
-	txidVout *[32+4]byte,
+	txidVout *[32 + 4]byte,
 	serializedTx []byte,
 	satoshi uint64,
 ) error {
@@ -289,7 +297,7 @@ func (w *walletManager) processNewUtxo(
 		return stackerr.Wrap(err)
 	}
 	//
-	err = rInsertUtxo(ctx, db, txidVout, satoshi, sHash)
+	err = w.utxoMan.store(ctx, db, txidVout, satoshi, sHash)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -303,10 +311,12 @@ func (w *walletManager) processNewUtxo(
 		w.accounts[sInfo.Account].NextIndex,
 		sInfo.Index+1,
 	)
-	err = w.refillScriptPubkey(sInfo.Account)
+	//
+	err = w.refillScriptPubkeys(sInfo.Account)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
+	//
 	err = rUpdateAccount(
 		ctx,
 		db,
@@ -317,7 +327,7 @@ func (w *walletManager) processNewUtxo(
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	return  nil
+	return nil
 }
 
 func (w *walletManager) processSpentUtxo(
@@ -327,13 +337,13 @@ func (w *walletManager) processSpentUtxo(
 	txid *[32]byte,
 	serializedTx []byte,
 	spentPubkeyHash *[32]byte,
-	spentTxidVout *[32+4]byte,
+	spentTxidVout *[32 + 4]byte,
 ) error {
 	err := rInsertTransaction(ctx, db, txid, blockHash, serializedTx)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	err = rDeleteUtxo(ctx, db, spentTxidVout)
+	err = w.utxoMan.delete(ctx, db, spentTxidVout)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -369,4 +379,4 @@ func accountHash(
 func makeTxidVout(txid *[32]byte, vout uint32, out []byte) {
 	out = append(out, txid[:]...)
 	out = binary.LittleEndian.AppendUint32(out, vout)
-} 
+}

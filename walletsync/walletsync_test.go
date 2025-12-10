@@ -18,7 +18,7 @@ func TestIntegration_walletsync(t *testing.T) {
 	defer cls()
 	bg := newFakeBlockGetter(t)
 	th := newFakeTxHandler(t)
-	var cpt blockData 
+	var cpt blockHeaderData
 	err := lastBlockData(tc.C, tc.D, regtest, &cpt)
 	assert.Must(t, err)
 	s := NewSynchronizer(tc.D, bg, []transactionHandler{th}, &cpt)
@@ -54,7 +54,7 @@ func newFakeBlockGetter(t *testing.T) *fakeBlockGetter {
 	)
 	var (
 		blocks = []bitcoin.Block{2: {}}
-		err error
+		err    error
 	)
 	err = blocks[0].Deserialize(bytes.NewReader(rawBlk0))
 	assert.Must(t, err)
@@ -94,11 +94,11 @@ type fakeTxHandler struct {
 }
 
 func newFakeTxHandler(t *testing.T) *fakeTxHandler {
-	return &fakeTxHandler{ t }
+	return &fakeTxHandler{t}
 }
 
 func (ft *fakeTxHandler) HandleTransaction(
-	ctx context.Context, 
+	ctx context.Context,
 	db sql.Database,
 	height int,
 	blockHash *[32]byte,

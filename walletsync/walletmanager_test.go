@@ -22,7 +22,7 @@ func TestIntegration_walletmanager(t *testing.T) {
 	seed := testutil.MustHexDecode(
 		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 	)
-	pub, _, err := bip32.DeriveSeed(seed, []uint32{0|bip32.KEY_HARDENED})
+	pub, _, err := bip32.DeriveSeed(seed, []uint32{0 | bip32.KEY_HARDENED})
 	wParams := walletParams{
 		CreatedAtHeight: 0,
 		ScriptKind:      scriptpubkey.SK_P2WPKH,
@@ -51,7 +51,7 @@ func TestIntegration_walletmanager(t *testing.T) {
 		InputCount:  0,
 		Inputs:      []bitcoin.Input{},
 		OutputCount: 1,
-		Outputs:     []bitcoin.Output{
+		Outputs: []bitcoin.Output{
 			{
 				Amount:           1_000_000,
 				ScriptPubKeySize: uint64(len(sp)),
@@ -60,18 +60,18 @@ func TestIntegration_walletmanager(t *testing.T) {
 		},
 	}
 	txs[1] = bitcoin.Transaction{
-		Version:     0,
-		Marker:      0,
-		Flag:        0,
-		InputCount:  0,
-		Inputs:      []bitcoin.Input{
+		Version:    0,
+		Marker:     0,
+		Flag:       0,
+		InputCount: 0,
+		Inputs: []bitcoin.Input{
 			{
-				Txid:          txs[0].Txid(nil),
-				Vout:          0,
+				Txid: txs[0].Txid(nil),
+				Vout: 0,
 			},
 		},
 		OutputCount: 1,
-		Outputs:     []bitcoin.Output{
+		Outputs: []bitcoin.Output{
 			{
 				Amount:           500_000,
 				ScriptPubKeySize: uint64(len(sp2)),
@@ -85,7 +85,7 @@ func TestIntegration_walletmanager(t *testing.T) {
 		},
 	}
 	txid := txs[1].Txid(nil)
-	var txidVout [32+4]byte
+	var txidVout [32 + 4]byte
 	makeTxidVout(&txid, 0, txidVout[:0])
 	expUtxoSet := []utxoData{
 		{
@@ -108,7 +108,7 @@ func TestIntegration_walletmanager(t *testing.T) {
 			Txid:             txs[1].Txid(nil),
 		},
 	}
-	expAccountSet := []accountData {
+	expAccountSet := []accountData{
 		{
 			Hash:      wm.accounts[0].Hash,
 			NextIndex: 1,
@@ -139,7 +139,7 @@ func walletManagerTest(
 	wm *walletManager,
 	height int,
 	blockHash *[32]byte,
-	txs []bitcoin.Transaction, 
+	txs []bitcoin.Transaction,
 	expUtxoSet []utxoData,
 	expScriptPubkeyTxSet []scriptPubkeyTxData,
 	expAccountSet []accountData,
@@ -251,7 +251,7 @@ func trSelectAccounts(
 	}
 	defer rows.Close()
 	var r []accountData
-	for rows.Next(){
+	for rows.Next() {
 		var a accountData
 		hash := bufWrapper(a.Hash[:])
 		err := rows.Scan(&hash, &a.NextIndex, &a.Height)
@@ -298,5 +298,4 @@ func mustScriptPubkey(
 	)
 	assert.Must(t, err)
 	return spks[0]
-} 
-
+}

@@ -13,15 +13,15 @@ var appName = "eps-go"
 
 type Config struct {
 	SqliteDBPath string
-	LogLevel string
+	LogLevel     string
 	MigrateFresh string
-	BTCNodeAddr string
-	XDGDirs xdg.Dirs
+	BTCNodeAddr  string
+	XDGDirs      xdg.Dirs
 }
 
 var (
-	cfg Config
-	cfgErr error
+	cfg     Config
+	cfgErr  error
 	cfgOnce sync.Once
 )
 
