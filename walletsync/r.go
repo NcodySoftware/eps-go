@@ -2,6 +2,7 @@ package walletsync
 
 import (
 	"context"
+	"fmt"
 
 	"ncody.com/ncgo.git/database/sql"
 	"ncody.com/ncgo.git/stackerr"
@@ -24,13 +25,11 @@ func rSelectLastBlockHeaderData(
 	LIMIT 1
 	;
 	`
-	row := db.QueryRow(ctx, s)
-	tmp := make([]byte, 0, 32)
-	err := row.Scan(&tmp, &out.Height)
+	hs := bufWrapper(out.Hash[:])
+	err := db.QueryRow(ctx, s).Scan(&hs, &out.Height)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	copy(out.Hash[:], tmp[:32])
 	return nil
 }
 
@@ -117,11 +116,11 @@ func rInsertTransaction(
 	serializedTx []byte,
 ) error {
 	s := `
-	INSERT INTO transaction
+	INSERT INTO tx
 	(txid, blockhash, serialized)
 	SELECT $1, $2, $3
 	WHERE NOT EXISTS (
-		SELECT 1 FROM transaction
+		SELECT 1 FROM tx
 		WHERE txid = $1
 	)
 	;
@@ -138,11 +137,11 @@ func rInsertUtxo(
 	db sql.Database,
 	txidVout *[32+4]byte,
 	satoshi uint64,
-	scriptPubkey []byte,
+	scriptPubkeyHash *[32]byte,
 ) error {
 	s := `
 	INSERT INTO unspent_output
-	(txid_vout, satoshi, scriptpubkey)
+	(txid_vout, satoshi, scriptpubkey_hash)
 	SELECT $1, $2, $3
 	WHERE NOT EXISTS (
 		SELECT 1 FROM unspent_output
@@ -150,7 +149,7 @@ func rInsertUtxo(
 	)
 	;
 	`
-	_, err := db.Exec(ctx, s, txidVout[:], satoshi, scriptPubkey)
+	_, err := db.Exec(ctx, s, txidVout[:], satoshi, scriptPubkeyHash[:])
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -160,7 +159,7 @@ func rInsertUtxo(
 type utxoData struct {
 	TxidVout [32+4]byte
 	Satoshi uint64
-	ScriptPubkey []byte
+	ScriptPubkeyHash [32]byte
 }
 
 func rSelectUtxo(
@@ -170,14 +169,13 @@ func rSelectUtxo(
 	out *utxoData,
 ) error {
 	s := `
-	SELECT satoshi, scriptpubkey
+	SELECT satoshi, scriptpubkey_hash
 	FROM unspent_output
 	WHERE txid_vout = $1
 	;
 	`
-	row := db.QueryRow(ctx, s, txidVout[:])
-	out.TxidVout = *txidVout
-	err := row.Scan(&out.Satoshi, &out.ScriptPubkey)
+	spkh := bufWrapper(out.ScriptPubkeyHash[:])
+	err := db.QueryRow(ctx, s, txidVout[:]).Scan(&out.Satoshi, &spkh)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -201,18 +199,18 @@ func rDeleteUtxo(
 	return nil
 }
 
-func rInsertScriptPubkeyTransaction(
+func rInsertScriptPubkeyTx(
 	ctx context.Context,
 	db sql.Database,
 	sHash *[32]byte,
 	txid *[32]byte,
 ) error {
 	s := `
-	INSERT INTO scriptpubkey_transaction
+	INSERT INTO scriptpubkey_tx
 	(scriptpubkey_hash, txid)
 	SELECT $1, $2
 	WHERE NOT EXISTS (
-		SELECT 1 FROM scriptpubkey_transaction
+		SELECT 1 FROM scriptpubkey_tx
 		WHERE 
 			scriptpubkey_hash = $1
 		AND
@@ -225,6 +223,11 @@ func rInsertScriptPubkeyTransaction(
 		return stackerr.Wrap(err)
 	}
 	return nil
+}
+
+type scriptPubkeyTxData struct {
+	ScriptPubkeyHash [32]byte
+	Txid [32]byte
 }
 
 func rUpdateAccount(
@@ -244,5 +247,19 @@ func rUpdateAccount(
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
+	return nil
+}
+
+type bufWrapper []byte
+
+func (self *bufWrapper) Scan(src any) error {
+	data, ok := src.([]byte)
+	if !ok {
+		return fmt.Errorf("bufWrapper: expecting []byte, got %T", src)
+	}
+	if len(data) != len(*self) {
+		return fmt.Errorf("bufWrapper: len of src != len dest")
+	}
+	copy(*self, data)
 	return nil
 }
