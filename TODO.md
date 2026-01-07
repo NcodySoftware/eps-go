@@ -1,60 +1,24 @@
 # CURRENT
 
+* implement the electrum server
+
+# Functional Requirements
+
+* Add p2wpkh and p2wsh multisig wallet pubkeys
+* Electrum protocol
+
+# TODOS
+
+* EPS server
+* Handle reorg
+
+# DONE
+
+* secp256k1 wrappers
+* hmac-sha256
 * bip32
-
-# ALL
-
-* base58 #OK
-
-* bip32 #OK
-
-* scriptPubkey manager #OK
-
-* blockprocessor
-
-* mempoolprocessor
-
-* walletmanager
-
-* eps-server
-
-
-# Description
-
-eps-server: walletmanager
-
-walletmanager: btcclient
-
-block_scan: block scriptpubkeys utxos 
-	transactions 
-
-mempool_scan: mempool scriptpubkeys utxos
-	mempool_transactions 
-
-scripthash_transactions: scripthashes transactions mempool_transactions
-	transactions
-
-# Datasets
-
-master_key
-    hash
-    next_index
-
-blockheader
-    hash: primary key
-    height: index
-    serialized
-
-unspent_output
-    txid_vout: primary key
-    satoshi
-    scriptpubkey: index
-
-transaction
-    txid: primary key
-    blockhash: fk
-    serialized
-
-scriptpubkey_transaction
-    scriptpubkey_hash: index
-    txid: fk
+* scriptpubkey builder
+* bitcoin wire protocol client
+* wallet manager
+* jsonrpc server
+* jsonrpc client

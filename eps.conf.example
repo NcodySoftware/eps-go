@@ -1,0 +1,25 @@
+####################
+# eps-go configuration file
+####################
+# Wallet config:
+#	WALLET_NAME=[height] <script kind> [required sigs] <xpub1> ...[xpubN]
+#
+# Kinds of scripts:
+#	p2pk: pay to pubkey
+#	p2pkh: pay to pubkey hash
+#	p2ms: pay to multisig
+#	p2sh: pay to scripthash (multisig)
+#	p2sh_wpkh: pay to script hash witness pubkey hash
+#	p2wpkh: pay to witness public key hash
+#	p2wsh: pay to witness script hash (multisig)
+#
+# Wallet names MUST start with `WALLET_` prefix.
+#
+# Ommiting height is the same as setting height to 0, adding a new wallet
+# with height zero will trigger a full rescan of the timechain.
+####################
+# Examples
+#WALLET_TEST=800000 p2wpkh xpub
+#WALLET_TEST_1=p2wpkh xpub
+#WALLET_MULTISIG_2_OF_3=0 p2wsh 2 xpub1 xpub2 xpub3
+####################

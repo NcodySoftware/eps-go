@@ -5,6 +5,8 @@ import (
 	"os"
 	"sync"
 
+	"ncody.com/ncgo.git/bitcoin"
+	"ncody.com/ncgo.git/dotenv"
 	"ncody.com/ncgo.git/env"
 	"ncody.com/ncgo.git/xdg"
 )
@@ -12,11 +14,14 @@ import (
 var appName = "eps-go"
 
 type Config struct {
-	SqliteDBPath string
-	LogLevel     string
-	MigrateFresh string
-	BTCNodeAddr  string
-	XDGDirs      xdg.Dirs
+	SqliteDBPath  string
+	LogLevel      string
+	MigrateFresh  string
+	BTCNodeAddr   string
+	XDGDirs       xdg.Dirs
+	ListenAddress string
+	ConfigFile    string
+	Network       bitcoin.Network
 }
 
 var (
@@ -43,6 +48,10 @@ func cfgInit() {
 	if cfgErr != nil {
 		return
 	}
+	cfg.ConfigFile = env.EnvOrDefault(
+		"CONFIG_FILE", cfg.XDGDirs.XDGConfigHome+"/eps.conf",
+	)
+	dotenv.Load(cfg.ConfigFile)
 	cfg.SqliteDBPath = env.EnvOrDefault(
 		"SQLITE_DB_PATH", cfg.XDGDirs.XDGDataHome+"/db.sqlite3",
 	)
@@ -52,4 +61,8 @@ func cfgInit() {
 	if cfgErr != nil {
 		return
 	}
+	cfg.ListenAddress = env.EnvOrDefault(
+		"LISTEN_ADDRESS", "127.0.0.1:50002",
+	)
+	cfg.Network = bitcoin.NetworkFromString(os.Getenv("BTC_NETWORK"))
 }

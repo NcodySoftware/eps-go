@@ -1,3 +1,5 @@
 **/*.swp
 tmp
 go.work
+go.work.sum
+.tags
