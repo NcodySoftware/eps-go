@@ -37,12 +37,28 @@ func (r *repository) loadUtxoIndex(ctx context.Context, db sql.Database) error {
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	r.utxoIndex = make(map[txidVout]utxoData2, len(utxos))
+	if r.utxoIndex == nil {
+		r.utxoIndex = make(map[txidVout]utxoData2, len(utxos))
+	}
 	for i := range utxos {
 		r.utxoIndex[utxos[i].TxidVout] = utxoData2{
 			Satoshi:          utxos[i].Satoshi,
 			ScriptPubkeyHash: utxos[i].ScriptPubkeyHash,
 		}
+	}
+	return nil
+}
+
+func (r *repository) reloadCaches(
+	ctx context.Context,
+	db sql.Database,
+) error {
+	for k := range r.utxoIndex {
+		delete(r.utxoIndex, k)
+	}
+	err := r.loadUtxoIndex(ctx, db)
+	if err != nil {
+		return stackerr.Wrap(err)
 	}
 	return nil
 }
@@ -345,14 +361,7 @@ func (r *repository) insertBlockHeader(
 	s := `
 	INSERT INTO blockheader
 	(hash, height, serialized)
-	SELECT $1, $2, $3
-	WHERE
-		NOT EXISTS (
-			SELECT 1
-			FROM blockheader
-			WHERE
-				hash = $1
-		)
+	VALUES ($1, $2, $3)
 	;
 	`
 	_, err := db.Exec(ctx, s, hash[:], height, serialized[:80])
@@ -361,55 +370,6 @@ func (r *repository) insertBlockHeader(
 	}
 	return nil
 }
-
-// TODO: Remove
-//func (r *repository) insertBlock(
-//	ctx context.Context,
-//	db sql.Database,
-//	hash *[32]byte,
-//	height int,
-//	serialized []byte,
-//) error {
-//	s := `
-//	INSERT INTO block
-//	(hash, height, serialized)
-//	SELECT $1, $2, $3
-//	WHERE
-//		NOT EXISTS (
-//			SELECT 1
-//			FROM block
-//			WHERE
-//				hash = $1
-//		)
-//	;
-//	`
-//	_, err := db.Exec(ctx, s, hash[:], height, serialized)
-//	if err != nil {
-//		return stackerr.Wrap(err)
-//	}
-//	return nil
-//}
-
-// TODO: remove
-//func (r *repository) selectBlock(
-//	ctx context.Context,
-//	db sql.Database,
-//	height int,
-//) ([]byte, error) {
-//	s := `
-//	SELECT serialized
-//	FROM block
-//	WHERE height = $1
-//	LIMIT 1
-//	;
-//	`
-//	var raw []byte
-//	err := db.QueryRow(ctx, s, height).Scan(&raw)
-//	if err != nil {
-//		return nil, stackerr.Wrap(err)
-//	}
-//	return raw, nil
-//}
 
 func (r *repository) insertTransaction(
 	ctx context.Context,
@@ -681,6 +641,57 @@ func (r *repository) updateWalletHeight(
 	;
 	`
 	_, err := db.Exec(ctx, s, whash[:], height)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	return nil
+}
+
+func (r *repository) deleteAllSinceBlock(
+	ctx context.Context,
+	db sql.Database,
+	height int,
+) error {
+	s := `
+	BEGIN;
+	--
+	DELETE 
+	FROM scriptpubkey_tx AS stx
+	WHERE stx.txid IN (
+		SELECT txid FROM tx
+		JOIN blockheader AS bh
+		ON bh.hash = tx.blockhash
+		AND bh.height > $1
+	);
+	--
+	DELETE
+	FROM unspent_output
+	WHERE SUBSTR(txid_vout, 1, 32) IN (
+		SELECT tx.txid FROM tx
+		JOIN blockheader AS bh
+		ON bh.hash = tx.blockhash
+		WHERE bh.height > $1
+	);
+	--
+	DELETE
+	FROM tx
+	WHERE blockhash IN (
+		SELECT hash
+		FROM blockheader
+		WHERE height > $1
+	);
+	--
+	DELETE
+	FROM blockheader
+	WHERE height > $1;
+	--
+	UPDATE wallet
+	SET height = $1
+	WHERE height > $1;
+	--
+	COMMIT;
+	`
+	_, err := db.Exec(ctx, s, height)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	//"runtime/pprof"
+	//"runtime/trace"
 
 	epsgo "github.com/ncodysoftware/eps-go"
 	"github.com/ncodysoftware/eps-go/electrum"
@@ -38,6 +39,17 @@ func run() error {
 	//		panic(err)
 	//	}
 	//	defer pprof.StopCPUProfile()
+
+	//	fd, err := os.OpenFile("/tmp/trace.out", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	defer fd.Close()
+	//	err = trace.Start(fd)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	defer trace.Stop()
 
 	cfg, err := epsgo.GetConfig()
 	if err != nil {

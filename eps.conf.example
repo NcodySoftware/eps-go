@@ -23,3 +23,9 @@
 #WALLET_TEST_1=p2wpkh xpub
 #WALLET_MULTISIG_2_OF_3=0 p2wsh 2 xpub1 xpub2 xpub3
 ####################
+#BTC_NETWORK=regtest
+#LISTEN_ADDRESS=127.0.0.1:50002
+#BTC_NODE_ADDR=127.0.0.1:18444
+#LOG_LEVEL=INFO
+#SQLITE_DB_PATH=/home/user/.local/share/eps-go/db.sqlite3
+####################

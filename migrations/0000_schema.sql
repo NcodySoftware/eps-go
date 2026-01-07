@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS blockheader (
 	height INTEGER NOT NULL,
 	serialized BLOB NOT NULL
 );
-CREATE INDEX blockheader_height_idx
-ON blockheader (height);
+--CREATE INDEX blockheader_height_idx
+--ON blockheader (height);
 ---
 --CREATE TABLE IF NOT EXISTS block (
 --	hash BLOB PRIMARY KEY,

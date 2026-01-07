@@ -441,8 +441,14 @@ func (w *W) setupWallet(
 
 func (w *W) run(ctx context.Context) error {
 	var buf []byte
+	var errReorg reorgError
 	err := w.syncHeaders(ctx, &buf)
-	if err != nil {
+	if err != nil && errors.As(err, &errReorg) {
+		err := w.processReorg(ctx, errReorg)
+		if err != nil {
+			return stackerr.Wrap(err)
+		}
+	} else if err != nil {
 		return stackerr.Wrap(err)
 	}
 	err = w.syncWallets(ctx, &buf)
@@ -461,8 +467,14 @@ func (w *W) run(ctx context.Context) error {
 		err := func() error {
 			w.mu.Lock()
 			defer w.mu.Unlock()
+			var errReorg reorgError
 			err := w.syncHeaders(ctx, &buf)
-			if err != nil {
+			if err != nil && errors.As(err, &errReorg) {
+				err := w.processReorg(ctx, errReorg)
+				if err != nil {
+					return stackerr.Wrap(err)
+				}
+			} else if err != nil {
 				return stackerr.Wrap(err)
 			}
 			err = w.syncWallets(ctx, &buf)
@@ -507,7 +519,17 @@ func (w *W) syncHeaders(ctx context.Context, buf *[]byte) error {
 				headers[i].PreviousBlock[:],
 				w.bestHeaderHash[:],
 			) {
+				err := w.checkReorg(ctx)
+				if err != nil {
+					return stackerr.Wrap(err)
+				}
 				return fmt.Errorf("unexpected block")
+			}
+			if i == 0 {
+				w.log.Debugf(
+					"NEW HEADERS: best header: %d",
+					w.bestHeader+len(headers),
+				)
 			}
 			clearBuf(buf)
 			hash := headers[i].Hash(buf)
@@ -527,6 +549,84 @@ func (w *W) syncHeaders(ctx context.Context, buf *[]byte) error {
 	return nil
 }
 
+func (w *W) processReorg(ctx context.Context, errReorg reorgError) error {
+	w.log.Warnf(
+		"PROCESSING REORG ROLLBACK TO BLOCK %d",
+		errReorg.LastHeightOnChain,
+	)
+	var hashes [][32]byte
+	err := w.repo.selectBlockHashesAtHeight(
+		ctx, w.db, errReorg.LastHeightOnChain, 1, &hashes,
+	)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	if len(hashes) < 1 {
+		panic("unreachable")
+	}
+	err = w.repo.deleteAllSinceBlock(ctx, w.db, errReorg.LastHeightOnChain)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	err = w.repo.reloadCaches(ctx, w.db)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	for i := range w.wallets {
+		wal := &w.wallets[i]
+		wal.height = min(errReorg.LastHeightOnChain, wal.height)
+	}
+	w.bestHeader = min(errReorg.LastHeightOnChain)
+	w.bestHeaderHash = hashes[0]
+	w.log.Warn("REORG PROCESSED")
+	return nil
+}
+
+type reorgError struct {
+	LastHeightOnChain int
+}
+
+func (r reorgError) Error() string {
+	return fmt.Sprintf("REORG AT HEIGHT: %x", r.LastHeightOnChain)
+}
+
+func (w *W) checkReorg(ctx context.Context) error {
+	if w.bestHeader == 0 {
+		return nil
+	}
+	height := w.bestHeader
+	var (
+		blockHashes [][32]byte
+		headersGet  [][32]byte
+	)
+	for ; ; height-- {
+		if w.bestHeader-(height-1) > 6 {
+			panic("REORG WITH DELTA > 6")
+		}
+		clearBuf(&blockHashes)
+		err := w.repo.selectBlockHashesAtHeight(
+			ctx, w.db, height-1, 1, &blockHashes,
+		)
+		if err != nil {
+			return stackerr.Wrap(err)
+		}
+		if len(blockHashes) < 1 {
+			panic("unreachable")
+		}
+		clearBuf(&headersGet)
+		headersGet = append(headersGet, blockHashes[0])
+		headers, err := w.bcli.GetHeaders(ctx, headersGet, [32]byte{})
+		if err != nil {
+			return stackerr.Wrap(err)
+		}
+		if len(headers) == 0 || len(headers) > 0 &&
+			headers[0].PreviousBlock == blockHashes[0] {
+			return reorgError{height - 1}
+		}
+	}
+	return nil
+}
+
 func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
 	if len(w.wallets) == 0 {
 		return nil
@@ -535,16 +635,16 @@ func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
 	for i := range w.wallets {
 		height = min(height, w.wallets[i].height)
 	}
-	if height == w.bestHeader {
+	height = max(height+1, 1)
+	if height >= w.bestHeader {
 		return nil
 	}
-	height = max(height, 1)
 	hbuf := make([][32]byte, 0, 2000)
 	var (
 		buf2    []byte
 		txidBuf [][32]byte
+		rem     estimateTime
 	)
-	w.log.Debug("DEBUG HERE", height)
 	for height <= w.bestHeader {
 		hbuf := hbuf[:0]
 		err := w.repo.selectBlockHashesAtHeight(
@@ -567,6 +667,7 @@ func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
 						db,
 						&block,
 						height,
+						&rem,
 						buf,
 						&buf2,
 						&txidBuf,
@@ -587,12 +688,18 @@ func (w *W) processBlock(
 	db sql.Database,
 	block *bitcoin.Block,
 	height int,
+	est *estimateTime,
 	buf *[]byte,
 	buf2 *[]byte,
 	txidBuf *[][32]byte,
 ) error {
-	// TODO: handle reorg
-	w.log.Debugf("NEW BLOCK; height: %d", height)
+	updateRemaining(height, w.bestHeader, est)
+	w.log.Debugf(
+		"NEW BLOCK; height: %d; remaining time ~%dh:%dm",
+		height,
+		est.remainingHours,
+		est.remainingMinutes,
+	)
 	updatedSH := make(map[[32]byte]struct{})
 	for i := range block.Transactions {
 		tx := &block.Transactions[i]
@@ -1072,4 +1179,36 @@ func checkMerkleProof(
 		pos /= 2
 	}
 	return bytes.Equal(merkleRoot[:], current[:])
+}
+
+type estimateTime struct {
+	sampleHeight     int
+	sampleTime       time.Time
+	remainingHours   int
+	remainingMinutes int
+}
+
+func updateRemaining(
+	currentHeight int, bestHeight int, est *estimateTime,
+) {
+	if est.sampleTime.IsZero() {
+		est.sampleTime = time.Now()
+		est.sampleHeight = currentHeight
+		est.remainingHours = -1
+		est.remainingMinutes = -1
+	}
+	if time.Since(est.sampleTime) < time.Second*60 {
+		return
+	}
+	blocks := currentHeight - est.sampleHeight
+	elapsedSeconds := time.Since(est.sampleTime) / time.Second
+	blocksPerSec := float64(blocks) / float64(elapsedSeconds)
+	remainingBlocks := bestHeight - currentHeight
+	remainingSeconds := float64(remainingBlocks) / blocksPerSec
+	remainingHours := int(remainingSeconds) / 60 / 60
+	remainingMinutes := int(remainingSeconds/60) % 60
+	est.remainingHours = remainingHours
+	est.remainingMinutes = remainingMinutes
+	est.sampleTime = time.Now()
+	est.sampleHeight = currentHeight
 }

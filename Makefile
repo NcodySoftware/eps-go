@@ -24,11 +24,10 @@ testint:
 	SQLITE_DB_PATH=$(SQLITE_DB_PATH) \
 	go test ./... -count=1 -p=1 -v 
 
-run_regtest:
+run:
 	mkdir -p $(PWD)/tmp
-	BTC_NETWORK=regtest \
+	BTC_NETWORK=$(BTC_NETWORK) \
 	LOG_LEVEL=$(LOG_LEVEL) \
 	BTC_NODE_ADDR=$(BTC_NODE_ADDR) \
 	SQLITE_DB_PATH=$(SQLITE_DB_PATH) \
-	go test ./... -count=1 -p=1 -v
-	
+	go run ./cmd/eps-go
