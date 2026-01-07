@@ -422,10 +422,12 @@ func (b *Client) mux(ctx context.Context) {
 			hf, ok := b.handlers[msg.Command]
 			b.mu.Unlock()
 			if !ok {
-				b.log.Debugf(
-					"bitcoin client: unhandled message: %s",
-					msg.ToString(),
-				)
+				if msg.Command != message_inv {
+					b.log.Debugf(
+						"bitcoin client: unhandled message: %s",
+						msg.ToString(),
+					)
+				}
 				goto start
 			}
 			err := hf(b, msg)

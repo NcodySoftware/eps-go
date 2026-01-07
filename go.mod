@@ -4,7 +4,7 @@ go 1.25.4
 
 require (
 	modernc.org/sqlite v1.40.1 // indirect
-	ncody.com/ncgo.git v0.0.0-20260107123251-c3913d66c40b
+	ncody.com/ncgo.git v0.0.0-20260107213705-8ea036def47f
 )
 
 require (
