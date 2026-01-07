@@ -882,6 +882,7 @@ func (w *W) processInput(
 	*buf = tx.Serialize(*buf)
 	rawTx := *buf
 	clearBuf(buf2)
+	clearBuf(txidBuf)
 	*txidBuf = block.TXIDs(*txidBuf, buf2)
 	pos, merkleP := MerkleProof(*txidBuf, txid)
 	if pos != txPos {
