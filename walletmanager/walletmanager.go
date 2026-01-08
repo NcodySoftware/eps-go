@@ -635,7 +635,6 @@ func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
 	for i := range w.wallets {
 		height = min(height, w.wallets[i].height)
 	}
-	height = max(height, 1)
 	if height >= w.bestHeader {
 		return nil
 	}
