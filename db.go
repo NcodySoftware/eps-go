@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"os"
 
 	"ncody.com/ncgo.git/database/sql"
 	"ncody.com/ncgo.git/database/sql/migrator"
@@ -49,7 +50,7 @@ func OpenDB(
 		return nil, stackerr.Wrap(err)
 	}
 	if count != 0 {
-		fmt.Printf("%d migrations executed\n", count)
+		fmt.Fprintf(os.Stderr, "%d migrations executed\n", count)
 	}
 	db, err := sqlite.New(dbFilePath)
 	if err != nil {

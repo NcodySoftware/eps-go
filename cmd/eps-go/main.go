@@ -64,7 +64,9 @@ func run() error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	logger := log.New(log.LevelFromString(cfg.LogLevel), "eps-go")
-	db, err := epsgo.OpenDB(ctx, cfg.SqliteDBPath, migrator.FlagMigrateAllowUpgrade)
+	db, err := epsgo.OpenDB(
+		ctx, cfg.SqliteDBPath, migrator.FlagMigrateAllowUpgrade,
+	)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -77,7 +79,9 @@ func run() error {
 		ctx, db, logger, bcli, wallets, cfg.Network,
 	)
 	defer w.Close(ctx)
-	err = electrum.ListenAndServe(ctx, cfg.ListenAddress, logger, w, func() {})
+	err = electrum.ListenAndServe(
+		ctx, cfg.ListenAddress, logger, w, func() {},
+	)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}

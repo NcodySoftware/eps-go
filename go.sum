@@ -63,7 +63,5 @@ modernc.org/strutil v1.2.1 h1:UneZBkQA+DX2Rp35KcM69cSsNES9ly8mQWD71HKlOA0=
 modernc.org/strutil v1.2.1/go.mod h1:EHkiggD70koQxjVdSBM3JKM7k6L0FbGE5eymy9i3B9A=
 modernc.org/token v1.1.0 h1:Xl7Ap9dKaEs5kLoOQeQmPWevfnk/DM5qcLcYlA8ys6Y=
 modernc.org/token v1.1.0/go.mod h1:UGzOrNV1mAFSEB63lOFHIpNRUVMvYTc6yu1SMY/XTDM=
-ncody.com/ncgo.git v0.0.0-20260107123251-c3913d66c40b h1:UpJE54fSHmMnFwW86A+jHTD++lTjvuSJM59kRR29lXc=
-ncody.com/ncgo.git v0.0.0-20260107123251-c3913d66c40b/go.mod h1:nd3ID5ptekZ3dffiN7eVuqwQptCZs1nYs07dxsfV9PA=
 ncody.com/ncgo.git v0.0.0-20260107213705-8ea036def47f h1:/yVjHKEzfS6MHMCJNKKpOvSwQNJykcw2zgCEmI09e9M=
 ncody.com/ncgo.git v0.0.0-20260107213705-8ea036def47f/go.mod h1:nd3ID5ptekZ3dffiN7eVuqwQptCZs1nYs07dxsfV9PA=

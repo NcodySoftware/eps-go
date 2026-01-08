@@ -2,10 +2,7 @@ module github.com/ncodysoftware/eps-go
 
 go 1.25.4
 
-require (
-	modernc.org/sqlite v1.40.1 // indirect
-	ncody.com/ncgo.git v0.0.0-20260107213705-8ea036def47f
-)
+require ncody.com/ncgo.git v0.0.0-20260107213705-8ea036def47f
 
 require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
@@ -20,4 +17,5 @@ require (
 	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
+	modernc.org/sqlite v1.40.1 // indirect
 )
