@@ -3,7 +3,7 @@ LOG_LEVEL := WARN
 BTC_NODE_ADDR := 127.0.0.1:18444
 SQLITE_DB_PATH := $(PWD)/tmp/db.sqlite3
 
-.PHONY: all FORCE fmt ctags testint run
+.PHONY: all FORCE fmt ctags testint run dist
 
 all: out/eps-go
 
@@ -31,3 +31,6 @@ out/eps-go: FORCE
 	go build -o out/eps-go -ldflags='-s -w' ./cmd/eps-go
 
 FORCE:	
+
+dist:
+	./scripts/dist.sh all
