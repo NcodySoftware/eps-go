@@ -65,7 +65,7 @@ func run() error {
 	defer stop()
 	logger := log.New(log.LevelFromString(cfg.LogLevel), "eps-go")
 	db, err := epsgo.OpenDB(
-		ctx, cfg.SqliteDBPath, migrator.FlagMigrateAllowUpgrade,
+		ctx, logger, cfg.SqliteDBPath, migrator.FlagMigrateAllowUpgrade,
 	)
 	if err != nil {
 		return stackerr.Wrap(err)

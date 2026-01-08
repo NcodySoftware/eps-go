@@ -1,10 +1,10 @@
 package epsgo
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"sync"
-	_ "embed"
 
 	"ncody.com/ncgo.git/bitcoin"
 	"ncody.com/ncgo.git/dotenv"

@@ -52,10 +52,13 @@ func setup(t *testing.T) {
 		tCtx.err = err
 		return
 	}
-	tCtx.D, tCtx.err = epsgo.OpenDB(
-		tCtx.C, tCtx.Cfg.SqliteDBPath, migrator.FlagMigrateFresh,
-	)
 	tCtx.L = log.New(log.LevelFromString(tCtx.Cfg.LogLevel), "eps-go")
+	tCtx.D, tCtx.err = epsgo.OpenDB(
+		tCtx.C,
+		tCtx.L,
+		tCtx.Cfg.SqliteDBPath,
+		migrator.FlagMigrateFresh,
+	)
 }
 
 type BenchParams struct {

@@ -3,12 +3,11 @@ package epsgo
 import (
 	"context"
 	"embed"
-	"fmt"
-	"os"
 
 	"ncody.com/ncgo.git/database/sql"
 	"ncody.com/ncgo.git/database/sql/migrator"
 	"ncody.com/ncgo.git/database/sql/sqlite"
+	"ncody.com/ncgo.git/log"
 	"ncody.com/ncgo.git/stackerr"
 )
 
@@ -22,20 +21,23 @@ func must(err error) {
 	panic(err)
 }
 
-func MustOpenDB(ctx context.Context, cfg Config) sql.Database {
+func MustOpenDB(ctx context.Context, log *log.Logger, cfg Config) sql.Database {
 	dbFilePath := cfg.XDGDirs.XDGDataHome + "/db.sqlite3"
 	var flag uint64
 	flag = migrator.FlagMigrateAllowUpgrade
 	if cfg.MigrateFresh == "1" {
 		flag |= migrator.FlagMigrateFresh
 	}
-	db, err := OpenDB(ctx, dbFilePath, flag)
+	db, err := OpenDB(ctx, log, dbFilePath, flag)
 	must(err)
 	return db
 }
 
 func OpenDB(
-	ctx context.Context, dbFilePath string, migratorFlag uint64,
+	ctx context.Context,
+	log *log.Logger,
+	dbFilePath string,
+	migratorFlag uint64,
 ) (sql.Database, error) {
 	var (
 		m migrator.Migrations
@@ -50,7 +52,7 @@ func OpenDB(
 		return nil, stackerr.Wrap(err)
 	}
 	if count != 0 {
-		fmt.Fprintf(os.Stderr, "%d migrations executed\n", count)
+		log.Infof("%d migrations executed", count)
 	}
 	db, err := sqlite.New(dbFilePath)
 	if err != nil {
