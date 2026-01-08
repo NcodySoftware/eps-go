@@ -635,7 +635,7 @@ func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
 	for i := range w.wallets {
 		height = min(height, w.wallets[i].height)
 	}
-	height = max(height+1, 1)
+	height = max(height, 1)
 	if height >= w.bestHeader {
 		return nil
 	}
@@ -645,6 +645,7 @@ func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
 		txidBuf [][32]byte
 		rem     estimateTime
 	)
+	height++
 	for height <= w.bestHeader {
 		hbuf := hbuf[:0]
 		err := w.repo.selectBlockHashesAtHeight(
@@ -694,12 +695,16 @@ func (w *W) processBlock(
 	txidBuf *[][32]byte,
 ) error {
 	updateRemaining(height, w.bestHeader, est)
-	w.log.Debugf(
-		"NEW BLOCK; height: %d; remaining time ~%dh:%dm",
-		height,
-		est.remainingHours,
-		est.remainingMinutes,
-	)
+	if est.remainingHours > -1 {
+		w.log.Debugf(
+			"NEW BLOCK; height: %d; remaining time ~%dh:%dm",
+			height,
+			est.remainingHours,
+			est.remainingMinutes,
+		)
+	} else {
+		w.log.Debugf("NEW BLOCK; height: %d", height)
+	}
 	updatedSH := make(map[[32]byte]struct{})
 	for i := range block.Transactions {
 		tx := &block.Transactions[i]
@@ -905,7 +910,7 @@ func (w *W) processInput(
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	err = w.repo.deleteUnspentOutput(ctx, db, &txVout)
+	err = w.repo.deleteUnspentOutput(ctx, db, &txVout, height)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}

@@ -594,13 +594,21 @@ func (r *repository) deleteUnspentOutput(
 	ctx context.Context,
 	db sql.Database,
 	txVout *txidVout,
+	height int,
 ) error {
 	s := `
+	INSERT INTO spent_output
+	(txid_vout, satoshi, scriptpubkey_hash, spent_height)
+	SELECT txid_vout, satoshi, scriptpubkey_hash, $2
+	FROM unspent_output
+	WHERE txid_vout = $1
+	;
+	--
 	DELETE FROM unspent_output
 	WHERE txid_vout = $1
 	;
 	`
-	_, err := db.Exec(ctx, s, txVout[:])
+	_, err := db.Exec(ctx, s, txVout[:], height)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -663,6 +671,15 @@ func (r *repository) deleteAllSinceBlock(
 		ON bh.hash = tx.blockhash
 		AND bh.height > $1
 	);
+	--
+	INSERT INTO unspent_output
+	(txid_vout, satoshi, scriptpubkey_hash)
+	SELECT txid_vout, satoshi, scriptpubkey_hash
+	FROM spent_output
+	WHERE spent_height > $1;
+	--
+	DELETE FROM spent_output
+	WHERE spent_height > $1;
 	--
 	DELETE
 	FROM unspent_output

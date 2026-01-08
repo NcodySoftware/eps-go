@@ -3,6 +3,7 @@ package epsgo
 import (
 	"context"
 	"embed"
+	"fmt"
 
 	"ncody.com/ncgo.git/database/sql"
 	"ncody.com/ncgo.git/database/sql/migrator"
@@ -43,9 +44,12 @@ func OpenDB(
 		return nil, stackerr.Wrap(err)
 	}
 	mg := migrator.NewSqlite(dbFilePath, m, migratorFlag)
-	_, err = mg.Migrate(ctx)
+	count, err := mg.Migrate(ctx)
 	if err != nil {
 		return nil, stackerr.Wrap(err)
+	}
+	if count != 0 {
+		fmt.Printf("%d migrations executed\n", count)
 	}
 	db, err := sqlite.New(dbFilePath)
 	if err != nil {

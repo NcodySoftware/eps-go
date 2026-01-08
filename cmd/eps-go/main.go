@@ -17,6 +17,7 @@ import (
 	"ncody.com/ncgo.git/bitcoin"
 	"ncody.com/ncgo.git/bitcoin/bip32"
 	"ncody.com/ncgo.git/bitcoin/scriptpubkey"
+	"ncody.com/ncgo.git/database/sql/migrator"
 	"ncody.com/ncgo.git/log"
 	"ncody.com/ncgo.git/stackerr"
 )
@@ -63,7 +64,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	logger := log.New(log.LevelFromString(cfg.LogLevel), "eps-go")
-	db, err := epsgo.OpenDB(ctx, cfg.SqliteDBPath, 0)
+	db, err := epsgo.OpenDB(ctx, cfg.SqliteDBPath, migrator.FlagMigrateAllowUpgrade)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
