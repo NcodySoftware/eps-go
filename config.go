@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"ncody.com/ncgo.git/bitcoin"
@@ -63,6 +64,9 @@ func cfgInit() {
 	cfg.SqliteDBPath = env.EnvOrDefault(
 		"SQLITE_DB_PATH", cfg.XDGDirs.XDGDataHome+"/db.sqlite3",
 	)
+	if strings.HasPrefix(cfg.SqliteDBPath, cfg.XDGDirs.XDGDataHome) {
+		os.MkdirAll(cfg.XDGDirs.XDGDataHome, 0o755)
+	}
 	cfg.MigrateFresh = env.Getenv("MIGRATE_FRESH")
 	cfg.LogLevel = env.EnvOrDefault("LOG_LEVEL", "INFO")
 	cfg.BTCNodeAddr = env.EnvOrDefault("BTC_NODE_ADDR", "127.0.0.1:8333")
