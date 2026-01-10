@@ -48,6 +48,17 @@ func getEnv(env string) (string, error) {
 	return v, nil
 }
 
+func dirname(arg string) string {
+	slashIdx := strings.LastIndex(arg, "/")
+	if slashIdx < 0 {
+		return "."
+	}
+	if slashIdx == 0 {
+		return "/"
+	}
+	return arg[:slashIdx]
+}
+
 func cfgInit() {
 	cfg.XDGDirs, cfgErr = xdg.GetDirs(appName)
 	if cfgErr != nil {
@@ -56,6 +67,7 @@ func cfgInit() {
 	cfg.ConfigFile = env.EnvOrDefault(
 		"CONFIG_FILE", cfg.XDGDirs.XDGConfigHome+"/eps-go.conf",
 	)
+	dotenv.Load(dirname(os.Args[0]) + "/eps-go.conf")
 	dotenv.Load(cfg.ConfigFile)
 	err := os.WriteFile(cfg.ConfigFile+".example", cfgExample, 0o644)
 	if err != nil {
