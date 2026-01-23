@@ -234,7 +234,10 @@ func (m *mux) scriptHashSubscribeHandler(ctx *jsonrpc.Ctx) error {
 	}
 	if status == nil {
 		ctx.Response.Result = []byte(`null`)
-		return nil
+	} else {
+		ctx.Response.Result = fmt.Appendf(
+			nil, `"%s"`, hex.EncodeToString(status),
+		)
 	}
 	connId := ctx.ConnId
 	m.w.ScriptHashSubscribe(connId, sh, func(status2 [32]byte) {
@@ -252,9 +255,6 @@ func (m *mux) scriptHashSubscribeHandler(ctx *jsonrpc.Ctx) error {
 			m.log.Err(stackerr.Wrap(err))
 		}
 	})
-	ctx.Response.Result = fmt.Appendf(
-		nil, `"%s"`, hex.EncodeToString(status),
-	)
 	return nil
 }
 
