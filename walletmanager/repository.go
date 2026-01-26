@@ -601,7 +601,14 @@ func (r *repository) deleteUnspentOutput(
 	(txid_vout, satoshi, scriptpubkey_hash, spent_height)
 	SELECT txid_vout, satoshi, scriptpubkey_hash, $2
 	FROM unspent_output
-	WHERE txid_vout = $1
+	WHERE 
+		txid_vout = $1 
+	AND
+		NOT EXISTS (
+			SELECT 1
+			FROM spent_output
+			WHERE txid_vout = $1
+		)
 	;
 	--
 	DELETE FROM unspent_output
