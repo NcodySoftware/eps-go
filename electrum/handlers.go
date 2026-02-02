@@ -475,14 +475,21 @@ func (m *mux) pingHandler(ctx *jsonrpc.Ctx) error {
 }
 
 func (m *mux) serverVersionHandler(ctx *jsonrpc.Ctx) error {
-	var clientName, protoVersion string
+	var (
+		clientName string
+		protoVersion [2]string
+	)
 	params := []any{&clientName, &protoVersion}
 	err := json.Unmarshal(ctx.Request.Params, &params)
 	if err != nil {
-		return stackerr.Wrap(err)
+		params2 := []any{&clientName, &protoVersion[0]}
+		err2 := json.Unmarshal(ctx.Request.Params, &params2)
+		if err2 != nil {
+			stackerr.Wrap(err)
+		}
 	}
-	if protoVersion != "1.4" {
-		return fmt.Errorf("bad client version: %s", protoVersion)
+	if protoVersion[0] != "1.4" {
+		return fmt.Errorf("bad client min version: %s", protoVersion)
 	}
 	ctx.Response.Result = []byte(`["eps-go", "1.4"]`)
 	return nil
