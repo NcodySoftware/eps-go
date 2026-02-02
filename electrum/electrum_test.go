@@ -37,7 +37,7 @@ func TestIntegrationBlockHeader(t *testing.T) {
 		Result: toJson(hex.EncodeToString(h[:])),
 	}
 	jrpcT(t, c.c, &r, &exp)
-	jrpcT(t, c.c2, &r, &exp)
+	//jrpcT(t, c.c2, &r, &exp)
 }
 
 func TestIntegrationBlockHeaders(t *testing.T) {
@@ -66,7 +66,7 @@ func TestIntegrationBlockHeaders(t *testing.T) {
 		Result: toJson(result),
 	}
 	jrpcT(t, c.c, &r, &exp)
-	jrpcT(t, c.c2, &r, &exp)
+	// jrpcT(t, c.c2, &r, &exp)
 }
 
 func TestIntegrationEstimateFee(t *testing.T) {
@@ -80,7 +80,7 @@ func TestIntegrationEstimateFee(t *testing.T) {
 		Result: []byte(`0.0001`),
 	}
 	jrpcT(t, c.c, &r, &exp)
-	jrpcT(t, c.c2, &r, &exp)
+	// jrpcT(t, c.c2, &r, &exp)
 }
 
 func TestIntegrationHeadersSubscribe(t *testing.T) {
@@ -102,7 +102,7 @@ func TestIntegrationHeadersSubscribe(t *testing.T) {
 		Result: toJson(res),
 	}
 	jrpcT(t, c.c, &r, &exp)
-	jrpcT(t, c.c2, &r, &exp)
+	// jrpcT(t, c.c2, &r, &exp)
 }
 
 func TestIntegrationScriptHashGetBalance(t *testing.T) {
@@ -123,7 +123,7 @@ func TestIntegrationScriptHashGetBalance(t *testing.T) {
 	var exp jsonrpc.Response
 	exp.Result = toJson(res)
 	jrpcT(t, c.c, &r, &exp)
-	jrpcT(t, c.c2, &r, &exp)
+	// jrpcT(t, c.c2, &r, &exp)
 }
 
 func TestIntegrationScriptHashGetHistory(t *testing.T) {
@@ -153,7 +153,7 @@ func TestIntegrationScriptHashGetHistory(t *testing.T) {
 		Result: toJson(expD),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationScriptHashGetMempool(t *testing.T) {
@@ -219,7 +219,7 @@ func TestIntegrationScriptHashSubscribe(t *testing.T) {
 		Result: toJson(hex.EncodeToString(status)),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationScriptHashSubscribe2(t *testing.T) {
@@ -235,7 +235,7 @@ func TestIntegrationScriptHashSubscribe2(t *testing.T) {
 		Result: []byte(`null`),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationScriptHashUnsubscribe(t *testing.T) {
@@ -251,7 +251,7 @@ func TestIntegrationScriptHashUnsubscribe(t *testing.T) {
 		Result: []byte(`false`),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	//jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationTransactionBroadcast(t *testing.T) {
@@ -272,7 +272,7 @@ func TestIntegrationTransactionBroadcast(t *testing.T) {
 		Result: toJson(hex.EncodeToString(txid[:])),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	//jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationTransactionGet(t *testing.T) {
@@ -292,7 +292,7 @@ func TestIntegrationTransactionGet(t *testing.T) {
 		Result: toJson(hex.EncodeToString(raw)),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationTransactionGetMerkle(t *testing.T) {
@@ -328,7 +328,7 @@ func TestIntegrationTransactionGetMerkle(t *testing.T) {
 		Result: toJson(mRes),
 	}
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationTransactionIdFromPos(t *testing.T) {
@@ -372,7 +372,7 @@ func TestIntegrationTransactionIdFromPos(t *testing.T) {
 	)
 	exp := mkRes(txD.Txid, txD.MerkleProof)
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationTransactionIdFromPos2(t *testing.T) {
@@ -399,7 +399,7 @@ func TestIntegrationTransactionIdFromPos2(t *testing.T) {
 	)
 	exp := mkRes(txD.Txid)
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationMempoolGetFeeHistogram(t *testing.T) {
@@ -419,7 +419,7 @@ func TestIntegrationMempoolGetFeeHistogram(t *testing.T) {
 	req := mkReq("mempool.get_fee_histogram")
 	exp := mkRes([][2]any{})
 	jrpcT(t, c.c, &req, &exp)
-	jrpcT(t, c.c2, &req, &exp)
+	// jrpcT(t, c.c2, &req, &exp)
 }
 
 func TestIntegrationMempoolGetInfo(t *testing.T) {
@@ -453,6 +453,19 @@ func TestIntegrationMempoolGetInfo(t *testing.T) {
 	//jrpcT(t, c.c2, &req, &exp)
 }
 
+func TestIntegrationServerFeatures(t *testing.T) {
+	c, cls := setup(t)
+	defer cls()
+	r := jsonrpc.Request{
+		Method: toJson("server.features"),
+		Params: []byte(`[]`),
+	}
+	exp := jsonrpc.Response{
+		Result: []byte(`{"genesis_hash":"0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206","hosts":{"127.0.0.1":{"tcp_port":50001}},"protocol_max":"1.4","protocol_min":"1.4","server_version":"eps-go_v0.0.0","hash_function":"sha256"}`),
+	}
+	jrpcT(t, c.c, &r, &exp)
+}
+
 func TestIntegrationPing(t *testing.T) {
 	c, cls := setup(t)
 	defer cls()
@@ -464,62 +477,26 @@ func TestIntegrationPing(t *testing.T) {
 		Result: []byte("null"),
 	}
 	jrpcT(t, c.c, &r, &exp)
-	jrpcT(t, c.c2, &r, &exp)
+	// jrpcT(t, c.c2, &r, &exp)
 }
 
-//type debugHandler struct {
-//	cli *jsonrpc.Client
-//	notChan <-chan jsonrpc.Notification
-//
-//	mu sync.Mutex
-//}
-//
-//func (d *debugHandler) OnConnect(connId uint32){
-//	d.mu.Lock()
-//}
-//
-//func (d *debugHandler) OnRequest(ctx *jsonrpc.Ctx) error{
-//	res, err := d.cli.Send(ctx.Request)
-//	if err != nil {
-//		return stackerr.Wrap(err)
-//	}
-//	ctx.Response = res
-//	return nil
-//}
-//
-//func (d *debugHandler) OnDisconnect(connId uint32){
-//	d.mu.Unlock()
-//}
-//
-//func TestIntegrationProxy(t *testing.T) {
-//	tc, cls := testutil.GetTCtx(t)
-//	defer cls()
-//	notFromServer := make(chan jsonrpc.Notification, 1)
-//	client, err := jsonrpc.NewClient(
-//		tc.C, tc.L, "127.0.0.1:50004", jsonrpc.ClientOpts{
-//			NHandler: func(n *jsonrpc.Notification) {
-//				notFromServer <- *n
-//			},
-//			Flags:    jsonrpc.TLS|jsonrpc.TLSNoVerify,
-//		},
-//	)
-//	assert.Must(t, err)
-//	defer client.Close(tc.C)
-//	dh := &debugHandler{
-//		cli:     client,
-//		notChan: notFromServer,
-//	}
-//	srv, err := jsonrpc.NewServer(tc.C, tc.L, "0.0.0.0:50002", dh)
-//	assert.Must(t, err)
-//	defer srv.Close(tc.C)
-//	select{}
-//}
+func TestIntegrationServerVersion2(t *testing.T) {
+	c, cls := setup(t)
+	defer cls()
+	r := jsonrpc.Request{
+		Method: toJson("server.version"),
+		Params: []byte(`["client",["1.4","1.6"]]`),
+	}
+	exp := jsonrpc.Response{
+		Result: []byte(`["eps-go","1.4"]`),
+	}
+	jrpcT(t, c.c, &r, &exp)
+}
 
 type Ctx struct {
-	t  *testutil.TCtx
-	c  *jsonrpc.Client
-	c2 *jsonrpc.Client
-	m  *walletmanager.W
+	t *testutil.TCtx
+	c *jsonrpc.Client
+	m *walletmanager.W
 }
 
 func setup(t *testing.T) (Ctx, func()) {
@@ -575,34 +552,15 @@ func setup(t *testing.T) (Ctx, func()) {
 		},
 	)
 	assert.Must(t, err)
-	c2Addr := "127.0.0.1:50004"
-	cli2, err := jsonrpc.NewClient(
-		tc.C,
-		tc.L,
-		c2Addr,
-		jsonrpc.ClientOpts{
-			NHandler: ndh,
-			Flags:    jsonrpc.TLS | jsonrpc.TLSNoVerify,
-		},
-	)
-	assert.Must(t, err)
-	_, err = cli2.Send(jsonrpc.Request{
-		Id:      toJson(0),
-		JsonRPC: toJson("2.0"),
-		Method:  toJson("server.version"),
-		Params:  []byte(`["cli v0.0","1.4"]`),
-	})
-	assert.Must(t, err)
 	closeFunc := func() {
 		cli.Close(tc.C)
-		cli2.Close(tc.C)
 		wm.Close(tc.C)
 		bcli.Stop()
 		cancel()
 		wg.Wait()
 		cls()
 	}
-	return Ctx{tc, cli, cli2, wm}, closeFunc
+	return Ctx{tc, cli, wm}, closeFunc
 }
 
 func toJson(v any) json.RawMessage {

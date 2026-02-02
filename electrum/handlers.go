@@ -1,12 +1,14 @@
 package electrum
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
 
 	"github.com/ncodysoftware/eps-go/jsonrpc"
+	"ncody.com/ncgo.git/bitcoin"
 	"ncody.com/ncgo.git/stackerr"
 )
 
@@ -33,10 +35,10 @@ func (m *mux) defaultHandlers() map[string]func(ctx *jsonrpc.Ctx) error {
 		//"server.add_peer": nil,
 		"server.banner":           m.serverBannerHandler,
 		"server.donation_address": m.serverDonationAddressHandler,
-		//"server.features": nil,
-		"server.peers.subscribe": m.serverPeersSubscribeHandler,
-		"server.ping":            m.pingHandler,
-		"server.version":         m.serverVersionHandler,
+		"server.features":         m.serverFeaturesHandler,
+		"server.peers.subscribe":  m.serverPeersSubscribeHandler,
+		"server.ping":             m.pingHandler,
+		"server.version":          m.serverVersionHandler,
 	}
 }
 
@@ -464,6 +466,40 @@ func (m *mux) serverDonationAddressHandler(ctx *jsonrpc.Ctx) error {
 	return nil
 }
 
+func (m *mux) serverFeaturesHandler(ctx *jsonrpc.Ctx) error {
+	var sblkHeader [80]byte
+	err := m.w.GetBlockHeader(m.ctx, 0, &sblkHeader)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	var sblkHeader2 [81]byte
+	copy(sblkHeader2[:], sblkHeader[:])
+	var blkHeader bitcoin.Header
+	err = blkHeader.Deserialize(bytes.NewReader(sblkHeader2[:]))
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	buf := m.bGet()
+	bClear(&buf)
+	blkHash := blkHeader.Hash(&buf)
+	slices.Reverse(blkHash[:])
+	ctx.Response.Result = fmt.Appendf(
+		nil,
+		`
+		{
+		    "genesis_hash": "%x",
+		    "hosts": {"127.0.0.1": {"tcp_port": 50001}},
+		    "protocol_max": "1.4",
+		    "protocol_min": "1.4",
+		    "server_version": "eps-go_v0.0.0",
+		    "hash_function": "sha256"
+		}
+		`,
+		blkHash,
+	)
+	return nil
+}
+
 func (m *mux) serverPeersSubscribeHandler(ctx *jsonrpc.Ctx) error {
 	ctx.Response.Result = []byte(`[]`)
 	return nil
@@ -476,7 +512,7 @@ func (m *mux) pingHandler(ctx *jsonrpc.Ctx) error {
 
 func (m *mux) serverVersionHandler(ctx *jsonrpc.Ctx) error {
 	var (
-		clientName string
+		clientName   string
 		protoVersion [2]string
 	)
 	params := []any{&clientName, &protoVersion}

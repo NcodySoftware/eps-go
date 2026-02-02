@@ -20,6 +20,7 @@ ctags:
 
 testint:
 	mkdir -p $(PWD)/tmp
+	CGO_ENABLED=0 \
 	BTC_NETWORK=$(BTC_NETWORK) \
 	LOG_LEVEL=$(LOG_LEVEL) \
 	BTC_NODE_ADDR=$(BTC_NODE_ADDR) \
