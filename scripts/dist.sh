@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 ####################
 set -e
 ####################
@@ -29,8 +29,8 @@ dist()
 }
 dist_all()
 {
-	#dist darwin	amd64	'zig cc --target=x86_64-macos'
-	#dist darwin	arm64	'zig cc --target=aarch64-macos'
+	#dist darwin	amd64	'clang'
+	#dist darwin	arm64	'clang'
 	dist linux	amd64	'zig cc --target=x86_64-linux'
 	dist linux	386	'zig cc --target=x86-linux'
 	dist linux	arm64	'zig cc --target=aarch64-linux'
