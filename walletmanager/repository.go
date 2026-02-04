@@ -78,7 +78,7 @@ func (r *repository) selectWalletData(
 	s := `
 	SELECT height, next_receive_index, next_change_index
 	FROM wallet
-	WHERE hash = $1
+	WHERE hash = ?
 	LIMIT 1;
 	`
 	var w walletData
@@ -101,7 +101,7 @@ func (r *repository) insertWalletData(
 	INSERT INTO wallet 
 	(hash, height, next_receive_index, next_change_index)
 	VALUES
-	($1, $2, $3, $4)
+	(?, ?, ?, ?)
 	;
 	`
 	_, err := db.Exec(
@@ -156,15 +156,15 @@ func (r *repository) selectBlockHashesAtHeight(
 	WHERE
 		EXISTS (
 			SELECT 1 FROM blockheader
-			WHERE height = $1
+			WHERE height = ?
 		)
 		AND
-		height >= $1
+		height >= ?
 	ORDER BY height ASC
-	LIMIT $2
+	LIMIT ?
 	;
 	`
-	rows, err := db.Query(ctx, s, height, limit)
+	rows, err := db.Query(ctx, s, height, height, limit)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -190,7 +190,7 @@ func (r *repository) selectRawBlockHeaderByHeight(
 	s := `
 	SELECT (serialized)
 	FROM blockheader
-	WHERE height = $1
+	WHERE height = ?
 	LIMIT 1;
 	`
 	bw := bufWrapper(out[:])
@@ -210,9 +210,9 @@ func (r *repository) selectRawBlockHeadersByHeight(
 	s := `
 	SELECT (serialized)
 	FROM blockheader
-	WHERE height >= $1
+	WHERE height >= ?
 	ORDER BY height ASC
-	LIMIT $2
+	LIMIT ?
 	;
 	`
 	rows, err := db.Query(ctx, s, height, limit)
@@ -288,7 +288,7 @@ func (r *repository) selectScriptHashHistory(
 	ON tx.txid = stx.txid
 	JOIN blockheader AS bh 
 	ON bh.hash = tx.blockhash
-	WHERE stx.scriptpubkey_hash = $1
+	WHERE stx.scriptpubkey_hash = ?
 	ORDER BY bh.height, tx.pos ASC
 	;
 	`
@@ -329,7 +329,7 @@ func (r *repository) selectScriptHashUnspent(
 	ON tx.txid = SUBSTR(uo.txid_vout, 1, 32)
 	JOIN blockheader as bh
 	ON bh.hash = tx.blockhash
-	WHERE uo.scriptpubkey_hash = $1
+	WHERE uo.scriptpubkey_hash = ?
 	ORDER BY bh.height, tx.pos ASC
 	;
 	`
@@ -361,7 +361,7 @@ func (r *repository) insertBlockHeader(
 	s := `
 	INSERT INTO blockheader
 	(hash, height, serialized)
-	VALUES ($1, $2, $3)
+	VALUES (?, ?, ?)
 	;
 	`
 	_, err := db.Exec(ctx, s, hash[:], height, serialized[:80])
@@ -383,10 +383,10 @@ func (r *repository) insertTransaction(
 	s := `
 	INSERT INTO tx
 	(txid, blockhash, pos, serialized, merkle_proof)
-	SELECT $1, $2, $3, $4, $5
+	SELECT ?, ?, ?, ?, ?
 	WHERE NOT EXISTS (
 		SELECT 1 FROM tx
-		WHERE txid = $1
+		WHERE txid = ?
 	)
 	;
 	`
@@ -398,6 +398,7 @@ func (r *repository) insertTransaction(
 		pos,
 		serialized,
 		merkleProof,
+		txid[:],
 	)
 	if err != nil {
 		return stackerr.Wrap(err)
@@ -413,7 +414,7 @@ func (r *repository) selectRawTransaction(
 	s := `
 	SELECT serialized
 	FROM tx
-	WHERE txid = $1
+	WHERE txid = ?
 	;
 	`
 	var raw []byte
@@ -440,7 +441,7 @@ func (r *repository) selectTransactionFromTxid(
 	s := `
 	SELECT tx.blockhash, tx.pos, tx.serialized, tx.merkle_proof
 	FROM tx
-	WHERE txid = $1
+	WHERE txid = ?
 	LIMIT 1;
 	;
 	`
@@ -467,11 +468,10 @@ func (r *repository) selectTransactionFromHeightPos(
 	JOIN blockheader AS bh
 	ON bh.hash = tx.blockhash
 	WHERE
-		bh.height = $1
+		bh.height = ?
 		AND
-		tx.pos = $2
+		tx.pos = ?
 	LIMIT 1;
-	;
 	`
 	var t transactionData
 	txid := bufWrapper(t.Txid[:])
@@ -494,17 +494,24 @@ func (r *repository) insertScriptPubkeyTransaction(
 	s := `
 	INSERT INTO scriptpubkey_tx
 	(scriptpubkey_hash, txid)
-	SELECT $1, $2
+	SELECT ?, ?
 	WHERE NOT EXISTS (
 		SELECT 1 FROM scriptpubkey_tx
 		WHERE 
-			scriptpubkey_hash = $1
+			scriptpubkey_hash = ?
 		AND 
-			txid = $2
+			txid = ?
 	)
 	;
 	`
-	_, err := db.Exec(ctx, s, scriptPubkeyHash[:], txid[:])
+	_, err := db.Exec(
+		ctx,
+		s,
+		scriptPubkeyHash[:],
+		txid[:],
+		scriptPubkeyHash[:],
+		txid[:],
+	)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -521,15 +528,22 @@ func (r *repository) insertUnspentOutput(
 	s := `
 	INSERT INTO unspent_output
 	(txid_vout, satoshi, scriptpubkey_hash)
-	SELECT $1, $2, $3
+	SELECT ?, ?, ?
 	WHERE NOT EXISTS (
 		SELECT 1 FROM unspent_output
-		WHERE txid_vout = $1
+		WHERE txid_vout = ?
 		LIMIT 1
 	)
 	;
 	`
-	_, err := db.Exec(ctx, s, txVout[:], satoshi, scriptPubkeyHash[:])
+	_, err := db.Exec(
+		ctx,
+		s,
+		txVout[:],
+		satoshi,
+		scriptPubkeyHash[:],
+		txVout[:],
+	)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -594,32 +608,45 @@ func (r *repository) deleteUnspentOutput(
 	ctx context.Context,
 	db sql.Database,
 	txVout *txidVout,
+) error {
+	s := `
+	DELETE FROM unspent_output
+	WHERE txid_vout = ?
+	;
+	`
+	_, err := db.Exec(ctx, s, txVout[:])
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	delete(r.utxoIndex, *txVout)
+	return nil
+}
+
+func (r *repository) insertSpentOutput(
+	ctx context.Context,
+	db sql.Database,
+	txVout *txidVout,
 	height int,
 ) error {
 	s := `
 	INSERT INTO spent_output
 	(txid_vout, satoshi, scriptpubkey_hash, spent_height)
-	SELECT txid_vout, satoshi, scriptpubkey_hash, $2
+	SELECT txid_vout, satoshi, scriptpubkey_hash, ?
 	FROM unspent_output
 	WHERE 
-		txid_vout = $1 
+		txid_vout = ? 
 	AND
 		NOT EXISTS (
 			SELECT 1
 			FROM spent_output
-			WHERE txid_vout = $1
+			WHERE txid_vout = ?
 		)
 	;
-	--
-	DELETE FROM unspent_output
-	WHERE txid_vout = $1
-	;
 	`
-	_, err := db.Exec(ctx, s, txVout[:], height)
+	_, err := db.Exec(ctx, s, height, txVout[:], txVout[:])
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	delete(r.utxoIndex, *txVout)
 	return nil
 }
 
@@ -632,11 +659,11 @@ func (r *repository) updateWalletIndexes(
 ) error {
 	s := `
 	UPDATE wallet
-	SET next_receive_index = $2, next_change_index = $3
-	WHERE hash = $1
+	SET next_receive_index = ?, next_change_index = ?
+	WHERE hash = ?
 	;
 	`
-	_, err := db.Exec(ctx, s, whash[:], nextReceiveIndex, nextChangeIndex)
+	_, err := db.Exec(ctx, s, nextReceiveIndex, nextChangeIndex, whash[:])
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -651,11 +678,11 @@ func (r *repository) updateWalletHeight(
 ) error {
 	s := `
 	UPDATE wallet
-	SET height = $2
-	WHERE hash = $1
+	SET height = ?
+	WHERE hash = ?
 	;
 	`
-	_, err := db.Exec(ctx, s, whash[:], height)
+	_, err := db.Exec(ctx, s, height, whash[:])
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
@@ -668,25 +695,23 @@ func (r *repository) deleteAllSinceBlock(
 	height int,
 ) error {
 	s := `
-	BEGIN;
-	--
 	DELETE 
 	FROM scriptpubkey_tx AS stx
 	WHERE stx.txid IN (
 		SELECT txid FROM tx
 		JOIN blockheader AS bh
 		ON bh.hash = tx.blockhash
-		AND bh.height > $1
+		AND bh.height > ?
 	);
 	--
 	INSERT INTO unspent_output
 	(txid_vout, satoshi, scriptpubkey_hash)
 	SELECT txid_vout, satoshi, scriptpubkey_hash
 	FROM spent_output
-	WHERE spent_height > $1;
+	WHERE spent_height > ?;
 	--
 	DELETE FROM spent_output
-	WHERE spent_height > $1;
+	WHERE spent_height > ?;
 	--
 	DELETE
 	FROM unspent_output
@@ -694,7 +719,7 @@ func (r *repository) deleteAllSinceBlock(
 		SELECT tx.txid FROM tx
 		JOIN blockheader AS bh
 		ON bh.hash = tx.blockhash
-		WHERE bh.height > $1
+		WHERE bh.height > ?
 	);
 	--
 	DELETE
@@ -702,20 +727,19 @@ func (r *repository) deleteAllSinceBlock(
 	WHERE blockhash IN (
 		SELECT hash
 		FROM blockheader
-		WHERE height > $1
+		WHERE height > ?
 	);
 	--
 	DELETE
 	FROM blockheader
-	WHERE height > $1;
+	WHERE height > ?;
 	--
 	UPDATE wallet
-	SET height = $1
-	WHERE height > $1;
+	SET height = ?
+	WHERE height > ?;
 	--
-	COMMIT;
 	`
-	_, err := db.Exec(ctx, s, height)
+	_, err := db.Exec(ctx, s, height,height,height,height,height,height,height,height)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}

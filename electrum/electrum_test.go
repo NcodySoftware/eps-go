@@ -501,10 +501,9 @@ type Ctx struct {
 
 func setup(t *testing.T) (Ctx, func()) {
 	tc, cls := testutil.GetTCtx(t)
-	bcli := bitcoin.NewClient(
+	bcli, err := bitcoin.NewClient(
 		tc.C, tc.Cfg.BTCNodeAddr, tc.L, bitcoin.Regtest,
 	)
-	err := bcli.Start()
 	assert.Must(t, err)
 	wallets := []walletmanager.WalletConfig{
 		{
@@ -555,7 +554,7 @@ func setup(t *testing.T) (Ctx, func()) {
 	closeFunc := func() {
 		cli.Close(tc.C)
 		wm.Close(tc.C)
-		bcli.Stop()
+		bcli.Close()
 		cancel()
 		wg.Wait()
 		cls()

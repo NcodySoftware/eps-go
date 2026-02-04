@@ -1,6 +1,6 @@
 package ripemd160
 
-import "golang.org/x/crypto/ripemd160"
+import "ncody.com/ncgo.git/internal/v/golang.org/x/crypto/ripemd160"
 
 func Sum160(data []byte) [20]byte {
 	hasher := ripemd160.New()

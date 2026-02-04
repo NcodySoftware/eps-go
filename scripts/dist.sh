@@ -13,9 +13,15 @@ eprintln()
 }
 dist()
 {
+	echo "building eps-go-${1}-${2}"
 	rm -rf out/eps-go-${1}-${2}
 	mkdir -p out/eps-go-${1}-${2}
-	CGO_ENABLED=0 GOOS=${1} GOARCH=${2} go build \
+	CGO_ENABLED=1 \
+	GOOS=${1} \
+	GOARCH=${2} \
+	CC="${3}" \
+	go build \
+	-v \
 	-o ./out/eps-go-${1}-${2} \
 	-ldflags='-s -w' \
 	./cmd/eps-go
@@ -23,12 +29,14 @@ dist()
 }
 dist_all()
 {
-	dist darwin amd64
-	dist darwin arm64
-	dist linux amd64
-	dist linux arm64
-	dist windows amd64
-	dist windows arm64
+	#dist darwin	amd64	'zig cc --target=x86_64-macos'
+	#dist darwin	arm64	'zig cc --target=aarch64-macos'
+	dist linux	amd64	'zig cc --target=x86_64-linux'
+	dist linux	386	'zig cc --target=x86-linux'
+	dist linux	arm64	'zig cc --target=aarch64-linux'
+	dist windows	amd64	'zig cc --target=x86_64-windows'
+	dist windows	386	'zig cc --target=x86-windows'
+	dist windows	arm64	'zig cc --target=aarch64-windows'
 }
 ####################
 case "${1}" in

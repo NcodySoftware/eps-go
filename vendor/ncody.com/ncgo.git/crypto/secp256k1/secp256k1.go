@@ -1,8 +1,8 @@
 package secp256k1
 
 import (
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
+	"ncody.com/ncgo.git/internal/v/github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"ncody.com/ncgo.git/internal/v/github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 )
 
 type ModNScalar struct {

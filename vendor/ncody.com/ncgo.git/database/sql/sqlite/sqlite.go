@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	_ "modernc.org/sqlite"
 	"ncody.com/ncgo.git/database/sql"
+	_ "ncody.com/ncgo.git/internal/v/github.com/mattn/go-sqlite3"
 	"ncody.com/ncgo.git/stackerr"
 )
 
@@ -19,7 +19,7 @@ func New(dbpath string) (sql.Database, error) {
 	connstr := fmt.Sprintf(
 		"file:%s?_foreign_keys=on&_busy_timeout=5000", dbpath,
 	)
-	db, err := sqlp.Open("sqlite", connstr)
+	db, err := sqlp.Open("sqlite3", connstr)
 	if err != nil {
 		return nil, stackerr.Wrap(err)
 	}

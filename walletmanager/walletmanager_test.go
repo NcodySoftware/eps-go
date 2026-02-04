@@ -22,12 +22,11 @@ func TestIntegration_W(t *testing.T) {
 	}
 	tc, cls := testutil.GetTCtx(t)
 	defer cls()
-	bcli := bitcoin.NewClient(
+	bcli, err := bitcoin.NewClient(
 		tc.C, tc.Cfg.BTCNodeAddr, tc.L, bitcoin.Regtest,
 	)
-	err = bcli.Start()
 	assert.Must(t, err)
-	defer bcli.Stop()
+	defer bcli.Close()
 	wc := WalletConfig{
 		Kind:    scriptpubkey.SK_P2WPKH,
 		Reqsigs: 0,
@@ -134,7 +133,7 @@ func tSelectScriptBalance(
 ) uint64 {
 	s := `
 	SELECT COALESCE(SUM(satoshi), 0) FROM unspent_output
-	WHERE scriptpubkey_hash = $1;
+	WHERE scriptpubkey_hash = ?;
 	`
 	var b uint64
 	err := tc.D.QueryRow(tc.C, s, sh[:]).Scan(&b)
@@ -145,7 +144,7 @@ func tSelectScriptBalance(
 func tSelectScriptTxCount(t *testing.T, tc *testutil.TCtx, sh *[32]byte) int {
 	s := `
 	SELECT COUNT(*) FROM scriptpubkey_tx
-	WHERE scriptpubkey_hash = $1;
+	WHERE scriptpubkey_hash = ?;
 	`
 	var b int
 	err := tc.D.QueryRow(tc.C, s, sh[:]).Scan(&b)

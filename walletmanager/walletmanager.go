@@ -105,9 +105,16 @@ func New(
 	}
 	go func() {
 		defer close(w.done)
-		err := w.run(ctx)
-		if err != nil {
-			w.log.Err(stackerr.Wrap(err))
+		firstIteration := true
+		for ctx.Err() == nil {
+			if !firstIteration {
+				w.initCompleted = make(chan struct{})
+			}
+			firstIteration = false
+			err := w.run(ctx)
+			if err != nil {
+				w.log.Err(stackerr.Wrap(err))
+			}
 		}
 	}()
 	return w, nil
@@ -377,9 +384,6 @@ func (w *W) ScriptHashSubscribe(
 }
 
 func (w *W) notifyScriptHashSubscribers(sh [32]byte, status [32]byte) {
-	if len(w.shSubs[sh]) == 0 {
-		return
-	}
 	for _, cb := range w.shSubs[sh] {
 		cb(status)
 	}
@@ -468,6 +472,8 @@ func (w *W) run(ctx context.Context) error {
 			w.mu.Lock()
 			defer w.mu.Unlock()
 			var errReorg reorgError
+			ctx, cancel := context.WithTimeout(ctx, time.Second * 30)
+			defer cancel()
 			err := w.syncHeaders(ctx, &buf)
 			if err != nil && errors.As(err, &errReorg) {
 				err := w.processReorg(ctx, errReorg)
@@ -624,7 +630,6 @@ func (w *W) checkReorg(ctx context.Context) error {
 			return reorgError{height - 1}
 		}
 	}
-	return nil
 }
 
 func (w *W) syncWallets(ctx context.Context, buf *[]byte) error {
@@ -757,6 +762,9 @@ func (w *W) processBlock(
 		wl.height = height
 	}
 	for sh := range updatedSH {
+		if len(w.shSubs[sh]) == 0 {
+			continue
+		}
 		clearBuf(buf)
 		var status2 [32]byte
 		status, err := w.getScriptHashStatus(ctx, db, &sh, buf)
@@ -909,7 +917,11 @@ func (w *W) processInput(
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	err = w.repo.deleteUnspentOutput(ctx, db, &txVout, height)
+	err = w.repo.insertSpentOutput(ctx, db, &txVout, height)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	err = w.repo.deleteUnspentOutput(ctx, db, &txVout)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}

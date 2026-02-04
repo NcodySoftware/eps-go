@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
+
 	//"runtime/pprof"
 	//"runtime/trace"
 
@@ -70,15 +72,26 @@ func run() error {
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
-	bcli := bitcoin.NewClient(ctx, cfg.BTCNodeAddr, logger, cfg.Network)
-	err = bcli.Start()
+	bcli, err := bitcoin.NewClient(
+		ctx, cfg.BTCNodeAddr, logger, cfg.Network,
+	)
 	if err != nil {
 		return stackerr.Wrap(err)
 	}
 	w, err := walletmanager.New(
 		ctx, db, logger, bcli, wallets, cfg.Network,
 	)
-	defer w.Close(ctx)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
+	defer func() {
+		<-ctx.Done()
+		ctx, cancel := context.WithTimeout(
+			context.Background(), time.Second * 30,
+		)
+		defer cancel()
+		w.Close(ctx)
+	}()
 	err = electrum.ListenAndServe(
 		ctx, cfg.ListenAddress, logger, w, func() {},
 	)

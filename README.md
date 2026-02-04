@@ -1,6 +1,6 @@
-# eps-go
-## A simple implementation of an electrum personal server
-====================
+# eps-go - Lightweight Electrum Personal Server
+## Connect Electrum compatible wallets with your Bitcoin Node
+===================
 
 ### Motivation
 
@@ -9,32 +9,48 @@ it is not maintained anymore, does not support concurrent connections and
 depends on legacy wallet (removed on bitcoin core v30) to work. So I was forced
 to create something new.
 
-This implementation allows you to track xpubs for N wallets.
+### Features
+* Just a single binary
+* Low resource usage
+* Track multiple wallets: p2pk, p2pkh, p2ms, p2sh, p2sh_wpkh, p2wpkh, p2wsh 
+* No TX index needed
+* Your Bitcoin node can be pruned
+* Concurrent connections are supported
 
 ### Limitations
-* The current implementation does not track mempool transactions
+* For now, there's no mempool
+
+### Build Dependencies
+* Go compiler
+* C compiler: if you want static executables, `zig cc`, which wraps clang
+is a good tool
 
 ### Runtime Dependencies
-* A trusted bitcoin node.
+* A trusted bitcoin node (any implementation that provides headers and blocks
+via the P2P protocol)
 
-### Hardware requirements (as of Jan 2026)
+### Hardware requirements
 * Memory: 100MB
 * Disk: 200MB
 
-### Instructions
+### Configuration
+* Configure the server copying `~/.config/eps-go/eps-go.conf.example` to
+`~/.config/eps-go/eps-go.conf` and setting the config parameters, adding 
+`WALLET_` entries as you need, as the example below:
+```
+WALLET_segwit_native = p2wpkh xpub...
+WALLET_segwit_multisig = p2wsh 2 xpub1 xpub2 xpub3
 
-* Build
+```
+
+### Building
 ```
 git clone https://github.com/ncodysoftware/eps-go
 cd eps-go
 make
 ```
 
-* Configure the server copying `~/.config/eps-go/eps-go.conf.example` to
-`~/.config/eps-go/eps-go.conf` and setting the config parameters / adding 
-`WALLET_` entries as you need.
-
-* Run
+### Run
 ```
 ./out/eps-go
 ```

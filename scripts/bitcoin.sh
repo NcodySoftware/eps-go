@@ -54,19 +54,23 @@ set_state()
 
 	../bitcoind-pod/control.sh bitcoin-cli "generatetoaddress 101 ${recv_0}" 1>/dev/null
 
-	../bitcoind-pod/control.sh bitcoin-cli '-rpcwallet=test --named listunspent' > /tmp/eps-go/utxos
+	printf "[\n" >/tmp/eps-go/utxos
+	../bitcoind-pod/control.sh bitcoin-cli '-rpcwallet=test --named listunspent' \
+	| jq \
+	| grep -m 1 'amount.*50\.00' -A9 -B6 >>/tmp/eps-go/utxos
+	#printf "  {}\n]" >>/tmp/eps-go/utxos
+	printf "]" >>/tmp/eps-go/utxos
+
 	local txid=$(cat /tmp/eps-go/utxos | jq -r .[0].txid)
 	local vout=$(cat /tmp/eps-go/utxos | jq -r .[0].vout)
-
 	local unsigned=$(../bitcoind-pod/control.sh bitcoin-cli "--named createrawtransaction inputs=[{\"txid\":\"${txid}\",\"vout\":${vout}}] outputs=[{\"${change_0}\":\"49\"}]") 1>/dev/null
 
 	../bitcoind-pod/control.sh bitcoin-cli "-rpcwallet=test signrawtransactionwithwallet ${unsigned}" > /tmp/eps-go/signed
-
 	local signed=$(cat /tmp/eps-go/signed | jq -r .hex)
 
 	../bitcoind-pod/control.sh bitcoin-cli "--named sendrawtransaction hexstring=${signed} maxfeerate=0" 1>/dev/null
 
-	eps_wallet
+	#eps_wallet
 
 	../bitcoind-pod/control.sh bitcoin-cli "generatetoaddress 1 ${drain}" 1>/dev/null
 	touch /tmp/eps-go/bitcoind-ok

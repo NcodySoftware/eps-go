@@ -8,15 +8,14 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ncody.com/ncgo.git/log"
 	"ncody.com/ncgo.git/stackerr"
 )
 
-var (
-	ErrClientNotStarted = errors.New("bitcoin client not started")
-)
+var ErrBitcoinClientNotConnected = errors.New("bitcoin client: not connected")
 
 type MessageHandlerFunc = func(b *Client, m message) error
 
@@ -26,18 +25,19 @@ type MessageHandler struct {
 }
 
 type Client struct {
-	ctx        context.Context
-	nodeAddr   string
-	log        *log.Logger
-	magicBytes [4]byte
-	readChan   chan message
-	writeChan  chan message
-	stopChan   chan struct{}
-	wg         sync.WaitGroup
-	timeout    time.Duration
-	started    bool
-	mu         sync.Mutex
-	handlers   map[[12]byte]MessageHandlerFunc
+	ctx         context.Context
+	ctxCancel   context.CancelFunc
+	nodeAddr    string
+	log         *log.Logger
+	magicBytes  [4]byte
+	readChan    chan message
+	writeChan   chan message
+	stopChan    chan struct{}
+	wg          sync.WaitGroup
+	timeout     time.Duration
+	mu          sync.Mutex
+	initialized atomic.Bool
+	handlers    map[[12]byte]MessageHandlerFunc
 }
 
 func NewClient(
@@ -45,56 +45,115 @@ func NewClient(
 	nodeAddress string,
 	logger *log.Logger,
 	net Network,
-) *Client {
+) (*Client, error) {
 	handlers := make(map[[12]byte]MessageHandlerFunc)
 	handlers[message_ping] = pingHandler
-	return &Client{
+	ctx, cancel := context.WithCancel(ctx)
+	c := &Client{
 		ctx:        ctx,
+		ctxCancel:  cancel,
 		nodeAddr:   nodeAddress,
 		log:        logger,
 		magicBytes: magicBytes[net],
 		timeout:    time.Second * 10,
 		handlers:   handlers,
+		readChan:   make(chan message, 1),
+		writeChan:  make(chan message, 1),
+		stopChan:   make(chan struct{}, 1),
 	}
+	err := c.start()
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
-func (b *Client) Start() error {
-	conn, err := net.DialTimeout("tcp", b.nodeAddr, time.Second*10)
-	if err != nil {
-		return stackerr.Wrap(err)
-	}
-	b.readChan = make(chan message, 1)
-	b.writeChan = make(chan message, 1)
-	b.stopChan = make(chan struct{}, 1)
-	startMux := make(chan struct{})
+func (b *Client) start() error {
+	errChan := make(chan error, 1)
+	connectTimeout := time.Second * 10
+	reconnectWait := time.Second * 10
 	b.wg.Go(func() {
-		b.connHandler(conn, startMux)
+		var firstHandshakeOk bool
+		for b.ctx.Err() == nil {
+			func() {
+				b.initialized.Store(false)
+			drainChannelsLoop:
+				for {
+				drainChannelsSelect:
+					select {
+					case <-b.readChan:
+						break drainChannelsSelect
+					case <-b.writeChan:
+						break drainChannelsSelect
+					case <-b.stopChan:
+						break drainChannelsSelect
+					default:
+						break drainChannelsLoop
+					}
+				}
+				conn, err := net.DialTimeout(
+					"tcp", b.nodeAddr, connectTimeout,
+				)
+				if err != nil && !firstHandshakeOk {
+					// At this point caller is waiting initialization
+					trySend(errChan, stackerr.Wrap(err))
+					return
+				} else if err != nil {
+					b.log.Warnf("bitcoin client: connect: %s", err)
+					// Now, we keep retrying forever
+					time.Sleep(reconnectWait)
+					return
+				}
+				var wg sync.WaitGroup
+				muxWait := make(chan struct{})
+				wg.Go(func() { b.connHandler(conn, muxWait) })
+				defer wg.Wait()
+				// perform handshake
+				ctx, cancel := context.WithTimeout(
+					b.ctx, connectTimeout,
+				)
+				defer cancel()
+				err = b.performHandshake(ctx)
+				if err != nil && !firstHandshakeOk {
+					trySend(b.stopChan, struct{}{})
+					trySend(errChan, stackerr.Wrap(err))
+					return
+				} else if err != nil {
+					trySend(b.stopChan, struct{}{})
+					b.log.Info("bitcoin client: handshake failed")
+					return
+				}
+				if firstHandshakeOk {
+					b.log.Info("bitcoin client: reconnected")
+				}
+				// safe to client send requests
+				b.initialized.Store(true)
+				// Allow mux to start
+				close(muxWait)
+				// Unlock caller that is waiting
+				trySend(errChan, nil)
+				firstHandshakeOk = true
+			}()
+		}
 	})
-	b.started = true
-	ctx, cancel := context.WithTimeout(b.ctx, b.timeout*4)
-	defer cancel()
-	err = b.performHandshake(ctx)
+	err := <-errChan
 	if err != nil {
-		b.Stop()
 		return stackerr.Wrap(err)
 	}
-	close(startMux)
-	startMux = nil
 	return nil
 }
 
-func (b *Client) Stop() {
-	if !b.started {
-		return
-	}
-	trySend(b.stopChan, struct{}{})
+func (b *Client) Close() {
+	b.ctxCancel()
 	b.wg.Wait()
-	b.started = false
 }
 
 func (b *Client) GetHeaders(
 	ctx context.Context, headerHashes [][32]byte, headerEnd [32]byte,
 ) ([]Header, error) {
+	if !b.initialized.Load() {
+		return nil, ErrBitcoinClientNotConnected
+	}
 	headersChan := make(chan []Header)
 	errChan := make(chan error)
 	handleHeader := func(c *Client, m message) error {
@@ -128,6 +187,9 @@ func (b *Client) GetHeaders(
 }
 
 func (b *Client) GetBlock(ctx context.Context, bhash [32]byte) (Block, error) {
+	if !b.initialized.Load() {
+		return Block{}, ErrBitcoinClientNotConnected
+	}
 	blockChan := make(chan Block)
 	errChan := make(chan error)
 	blockHandler := func(c *Client, m message) error {
@@ -169,6 +231,9 @@ func (b *Client) GetBlock(ctx context.Context, bhash [32]byte) (Block, error) {
 }
 
 func (b *Client) BroadcastWTX(ctx context.Context, rawTx []byte) error {
+	if !b.initialized.Load() {
+		return ErrBitcoinClientNotConnected
+	}
 	wtxid := sha256.Sum256(rawTx)
 	wtxid = sha256.Sum256(wtxid[:])
 	txInvMsg := makeInvMessage(b.magicBytes, message_inv, inv{
@@ -233,9 +298,6 @@ func (b *Client) BroadcastWTX(ctx context.Context, rawTx []byte) error {
 }
 
 func (b *Client) send(ctx context.Context, m message) error {
-	if !b.started {
-		return fmt.Errorf("bitcoin client not started")
-	}
 	select {
 	case <-b.ctx.Done():
 		return stackerr.Wrap(b.ctx.Err())
@@ -310,7 +372,7 @@ func (b *Client) unsetHandler(message [12]byte) {
 	b.mu.Unlock()
 }
 
-func (b *Client) connHandler(conn readWriteCloser, startMux chan struct{}) {
+func (b *Client) connHandler(conn readWriteCloser, muxUnlock chan struct{}) {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(b.ctx)
 	defer cancel()
@@ -325,12 +387,11 @@ func (b *Client) connHandler(conn readWriteCloser, startMux chan struct{}) {
 	case <-ctx.Done():
 	case <-b.stopChan:
 		cancel()
-	case <-startMux:
+	case <-muxUnlock:
 		wg.Go(func() {
 			b.mux(ctx)
 		})
 	}
-	startMux = nil
 	//
 	select {
 	case <-ctx.Done():
