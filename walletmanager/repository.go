@@ -442,7 +442,7 @@ func (r *repository) selectTransactionFromTxid(
 	SELECT tx.blockhash, tx.pos, tx.serialized, tx.merkle_proof
 	FROM tx
 	WHERE txid = ?
-	LIMIT 1;
+	LIMIT 1
 	;
 	`
 	var t transactionData

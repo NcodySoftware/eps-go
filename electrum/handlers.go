@@ -357,6 +357,9 @@ func (m *mux) transactionGetMerkleHandler(ctx *jsonrpc.Ctx) error {
 	defer m.bPut(buf)
 	bClear(&buf)
 	merkle, err := m.w.GetTransactionMerkle(m.ctx, &txid)
+	if err != nil {
+		return stackerr.Wrap(err)
+	}
 	var mRes struct {
 		BlockHeight int      `json:"block_height"`
 		Pos         int      `json:"pos"`
