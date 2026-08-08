@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/ncodysoftware/eps-go/jsonrpc"
 	"ncody.com/ncgo.git/bitcoin"
@@ -527,8 +529,29 @@ func (m *mux) serverVersionHandler(ctx *jsonrpc.Ctx) error {
 			stackerr.Wrap(err)
 		}
 	}
-	if protoVersion[0] != "1.4" {
-		return fmt.Errorf("bad client min version: %s", protoVersion)
+	minVer := strings.Split(protoVersion[0], ".")
+	if len(minVer) < 2 {
+		return fmt.Errorf(
+			"bad client min version length: %s", protoVersion,
+		)
+	}
+	if minVer[0] != "1" {
+		return fmt.Errorf(
+			"bad client min major version: %s", protoVersion,
+		)
+	}
+	minVerMinor, err := strconv.Atoi(minVer[1])
+	if err != nil {
+		return fmt.Errorf(
+			"bad client min minor version encoding: %s",
+			protoVersion,
+		)
+	}
+	if minVerMinor < 3 {
+		return fmt.Errorf(
+			"bad client min minor version: %s",
+			protoVersion,
+		)
 	}
 	ctx.Response.Result = []byte(`["eps-go", "1.4"]`)
 	return nil
